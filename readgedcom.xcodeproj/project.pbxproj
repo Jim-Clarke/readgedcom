@@ -3,11 +3,13 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 50;
+	objectVersion = 52;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		43F37AA92639FD0B00C0AFFF /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F37AA82639FD0B00C0AFFF /* main.swift */; };
+		43F37AB22639FD7C00C0AFFF /* TextFileUtilities in Frameworks */ = {isa = PBXBuildFile; productRef = 43F37AB12639FD7C00C0AFFF /* TextFileUtilities */; };
+		43F37AB62639FDA000C0AFFF /* StringUtilities in Frameworks */ = {isa = PBXBuildFile; productRef = 43F37AB52639FDA000C0AFFF /* StringUtilities */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -24,7 +26,7 @@
 
 /* Begin PBXFileReference section */
 		43F37AA52639FD0B00C0AFFF /* readgedcom */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = readgedcom; sourceTree = BUILT_PRODUCTS_DIR; };
-		43F37AA82639FD0B00C0AFFF /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		43F37AA82639FD0B00C0AFFF /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = main.swift; path = readgedcom/main.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -32,6 +34,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				43F37AB62639FDA000C0AFFF /* StringUtilities in Frameworks */,
+				43F37AB22639FD7C00C0AFFF /* TextFileUtilities in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +82,10 @@
 			dependencies = (
 			);
 			name = readgedcom;
+			packageProductDependencies = (
+				43F37AB12639FD7C00C0AFFF /* TextFileUtilities */,
+				43F37AB52639FDA000C0AFFF /* StringUtilities */,
+			);
 			productName = readgedcom;
 			productReference = 43F37AA52639FD0B00C0AFFF /* readgedcom */;
 			productType = "com.apple.product-type.tool";
@@ -105,6 +113,10 @@
 				Base,
 			);
 			mainGroup = 43F37A9C2639FD0B00C0AFFF;
+			packageReferences = (
+				43F37AB02639FD7C00C0AFFF /* XCRemoteSwiftPackageReference "TextFileUtilities" */,
+				43F37AB42639FDA000C0AFFF /* XCRemoteSwiftPackageReference "StringUtilities" */,
+			);
 			productRefGroup = 43F37AA62639FD0B00C0AFFF /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -281,6 +293,38 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		43F37AB02639FD7C00C0AFFF /* XCRemoteSwiftPackageReference "TextFileUtilities" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Jim-Clarke/TextFileUtilities.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.3;
+			};
+		};
+		43F37AB42639FDA000C0AFFF /* XCRemoteSwiftPackageReference "StringUtilities" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Jim-Clarke/StringUtilities.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		43F37AB12639FD7C00C0AFFF /* TextFileUtilities */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 43F37AB02639FD7C00C0AFFF /* XCRemoteSwiftPackageReference "TextFileUtilities" */;
+			productName = TextFileUtilities;
+		};
+		43F37AB52639FDA000C0AFFF /* StringUtilities */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 43F37AB42639FDA000C0AFFF /* XCRemoteSwiftPackageReference "StringUtilities" */;
+			productName = StringUtilities;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 43F37A9D2639FD0B00C0AFFF /* Project object */;
 }
