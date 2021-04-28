@@ -7,9 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		43096DDB263A0D9B00BB76C9 /* StringUtilities in Frameworks */ = {isa = PBXBuildFile; productRef = 43096DDA263A0D9B00BB76C9 /* StringUtilities */; };
 		43F37AA92639FD0B00C0AFFF /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F37AA82639FD0B00C0AFFF /* main.swift */; };
 		43F37AB22639FD7C00C0AFFF /* TextFileUtilities in Frameworks */ = {isa = PBXBuildFile; productRef = 43F37AB12639FD7C00C0AFFF /* TextFileUtilities */; };
-		43F37AB62639FDA000C0AFFF /* StringUtilities in Frameworks */ = {isa = PBXBuildFile; productRef = 43F37AB52639FDA000C0AFFF /* StringUtilities */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -34,7 +34,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				43F37AB62639FDA000C0AFFF /* StringUtilities in Frameworks */,
+				43096DDB263A0D9B00BB76C9 /* StringUtilities in Frameworks */,
 				43F37AB22639FD7C00C0AFFF /* TextFileUtilities in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -84,7 +84,7 @@
 			name = readgedcom;
 			packageProductDependencies = (
 				43F37AB12639FD7C00C0AFFF /* TextFileUtilities */,
-				43F37AB52639FDA000C0AFFF /* StringUtilities */,
+				43096DDA263A0D9B00BB76C9 /* StringUtilities */,
 			);
 			productName = readgedcom;
 			productReference = 43F37AA52639FD0B00C0AFFF /* readgedcom */;
@@ -115,7 +115,7 @@
 			mainGroup = 43F37A9C2639FD0B00C0AFFF;
 			packageReferences = (
 				43F37AB02639FD7C00C0AFFF /* XCRemoteSwiftPackageReference "TextFileUtilities" */,
-				43F37AB42639FDA000C0AFFF /* XCRemoteSwiftPackageReference "StringUtilities" */,
+				43096DD9263A0D9B00BB76C9 /* XCRemoteSwiftPackageReference "StringUtilities" */,
 			);
 			productRefGroup = 43F37AA62639FD0B00C0AFFF /* Products */;
 			projectDirPath = "";
@@ -295,6 +295,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		43096DD9263A0D9B00BB76C9 /* XCRemoteSwiftPackageReference "StringUtilities" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Jim-Clarke/StringUtilities.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.1.2;
+			};
+		};
 		43F37AB02639FD7C00C0AFFF /* XCRemoteSwiftPackageReference "TextFileUtilities" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/Jim-Clarke/TextFileUtilities.git";
@@ -303,26 +311,18 @@
 				minimumVersion = 1.0.3;
 			};
 		};
-		43F37AB42639FDA000C0AFFF /* XCRemoteSwiftPackageReference "StringUtilities" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/Jim-Clarke/StringUtilities.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.1.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		43096DDA263A0D9B00BB76C9 /* StringUtilities */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 43096DD9263A0D9B00BB76C9 /* XCRemoteSwiftPackageReference "StringUtilities" */;
+			productName = StringUtilities;
+		};
 		43F37AB12639FD7C00C0AFFF /* TextFileUtilities */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 43F37AB02639FD7C00C0AFFF /* XCRemoteSwiftPackageReference "TextFileUtilities" */;
 			productName = TextFileUtilities;
-		};
-		43F37AB52639FDA000C0AFFF /* StringUtilities */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 43F37AB42639FDA000C0AFFF /* XCRemoteSwiftPackageReference "StringUtilities" */;
-			productName = StringUtilities;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
