@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		43096DDB263A0D9B00BB76C9 /* StringUtilities in Frameworks */ = {isa = PBXBuildFile; productRef = 43096DDA263A0D9B00BB76C9 /* StringUtilities */; };
+		43583839263B05EE0011EFDF /* StringUtilities in Frameworks */ = {isa = PBXBuildFile; productRef = 43583838263B05EE0011EFDF /* StringUtilities */; };
 		43F37AA92639FD0B00C0AFFF /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F37AA82639FD0B00C0AFFF /* main.swift */; };
 		43F37AB22639FD7C00C0AFFF /* TextFileUtilities in Frameworks */ = {isa = PBXBuildFile; productRef = 43F37AB12639FD7C00C0AFFF /* TextFileUtilities */; };
 /* End PBXBuildFile section */
@@ -34,7 +34,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				43096DDB263A0D9B00BB76C9 /* StringUtilities in Frameworks */,
+				43583839263B05EE0011EFDF /* StringUtilities in Frameworks */,
 				43F37AB22639FD7C00C0AFFF /* TextFileUtilities in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -84,7 +84,7 @@
 			name = readgedcom;
 			packageProductDependencies = (
 				43F37AB12639FD7C00C0AFFF /* TextFileUtilities */,
-				43096DDA263A0D9B00BB76C9 /* StringUtilities */,
+				43583838263B05EE0011EFDF /* StringUtilities */,
 			);
 			productName = readgedcom;
 			productReference = 43F37AA52639FD0B00C0AFFF /* readgedcom */;
@@ -115,7 +115,7 @@
 			mainGroup = 43F37A9C2639FD0B00C0AFFF;
 			packageReferences = (
 				43F37AB02639FD7C00C0AFFF /* XCRemoteSwiftPackageReference "TextFileUtilities" */,
-				43096DD9263A0D9B00BB76C9 /* XCRemoteSwiftPackageReference "StringUtilities" */,
+				43583837263B05EE0011EFDF /* XCRemoteSwiftPackageReference "StringUtilities" */,
 			);
 			productRefGroup = 43F37AA62639FD0B00C0AFFF /* Products */;
 			projectDirPath = "";
@@ -295,12 +295,12 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		43096DD9263A0D9B00BB76C9 /* XCRemoteSwiftPackageReference "StringUtilities" */ = {
+		43583837263B05EE0011EFDF /* XCRemoteSwiftPackageReference "StringUtilities" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/Jim-Clarke/StringUtilities.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 1.1.2;
+				minimumVersion = 1.1.3;
 			};
 		};
 		43F37AB02639FD7C00C0AFFF /* XCRemoteSwiftPackageReference "TextFileUtilities" */ = {
@@ -314,9 +314,9 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		43096DDA263A0D9B00BB76C9 /* StringUtilities */ = {
+		43583838263B05EE0011EFDF /* StringUtilities */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 43096DD9263A0D9B00BB76C9 /* XCRemoteSwiftPackageReference "StringUtilities" */;
+			package = 43583837263B05EE0011EFDF /* XCRemoteSwiftPackageReference "StringUtilities" */;
 			productName = StringUtilities;
 		};
 		43F37AB12639FD7C00C0AFFF /* TextFileUtilities */ = {
