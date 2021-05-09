@@ -29,7 +29,7 @@ typealias GedcomXREF = String
 // A PersonID is a positive integer, unique to each Person. It is extracted
 // from the input data, and is used as the key to "people", a dictionary.
 //
-// FamilyID is similar, for families.
+// A FamilyID is similar, for a family.
 //
 // A NoteID identifies a note. It cannot be just an integer, because there are
 // GEDCOM XREF:NOTEs of at least two forms: "@NI009@", to an individual's
@@ -121,11 +121,11 @@ struct Name {
     //  Names
     // Nick Name: standard, exported as "2 NICK <value>"
     //
-    // Here, we will use the Nick Name and report it as "known as", for people
-    // such as Maureen Lennon, for whom Maureen is the middle name and the one
-    // she is known by, even though it is not strictly a nickname. We will use
-    // Chosen as a name type where it's appropriate, with fingers crossed that
-    // it will survive the transition to non-Gramps software.
+    // Here, we will use the Nick Name and report it as "known as". This will
+    // work for people who are known by their middle name, even though it is not
+    // strictly a nickname. We will use Chosen as a name type where it's
+    // appropriate, with fingers crossed that it will survive the transition to
+    // non-Gramps software.
     
     var prefix: String? // (NPFX) a name prefix such as "Dr", "Brigadier", etc.
     // The original file that started this whole thing used the TITL instead of
@@ -250,35 +250,36 @@ struct Family {
     }
 }
 
-
-// Given pattern, a regular expression, and target, possibly containing
-// matches for pattern, return all the matches, including for each all the
-// captured substrings.
-
-func applyRegex(pattern pat: String, target: String) -> [[String]] {
-    // Reference: https://nshipster.com/swift-regular-expressions/
-    
-    let regex = try! NSRegularExpression(pattern: pat, options: [])
-
-    let nsrange = NSRange(target.startIndex ..< target.endIndex, in: target)
-    var matches = [[String]]()
-    regex.enumerateMatches(in: target,
-                           options: [],
-                           range: nsrange
-                          ) { (match, _, _) in
-        guard let match = match else { return }
-        
-        var matchingStrings = [String]()
-        for i in 0 ..< match.numberOfRanges {
-            let captureRange = Range(match.range(at: i), in: target)
-            let matchingString = String(target[captureRange!])
-            matchingStrings.append(matchingString)
-        }
-        matches.append(matchingStrings)
-    }
-    
-    return matches
-}
+// Now in StringUtilities:
+//
+// // Given pattern, a regular expression, and target, possibly containing
+// // matches for pattern, return all the matches, including for each all the
+// // captured substrings.
+//
+// func applyRegex(pattern pat: String, target: String) -> [[String]] {
+//     // Reference: https://nshipster.com/swift-regular-expressions/
+//
+//     let regex = try! NSRegularExpression(pattern: pat, options: [])
+//
+//     let nsrange = NSRange(target.startIndex ..< target.endIndex, in: target)
+//     var matches = [[String]]()
+//     regex.enumerateMatches(in: target,
+//                            options: [],
+//                            range: nsrange
+//                           ) { (match, _, _) in
+//         guard let match = match else { return }
+//
+//         var matchingStrings = [String]()
+//         for i in 0 ..< match.numberOfRanges {
+//             let captureRange = Range(match.range(at: i), in: target)
+//             let matchingString = String(target[captureRange!])
+//             matchingStrings.append(matchingString)
+//         }
+//         matches.append(matchingStrings)
+//     }
+//
+//     return matches
+// }
 
 // Return the two variable parts of a string of the form @AAA999@ -- that is,
 // an "at" sign, some upper-case ASCII letters, some digits, and then a final
@@ -297,7 +298,7 @@ func atStrIntAt(_ inStr: String) -> (String, Int)? {
     
     let pat = "^@([A-Z]+)([0-9]+)@$"
     
-    let matches = applyRegex(pattern: pat, target: inStr)
+    let matches = applyRegex(regex: pat, target: inStr)
 
     if matches.count != 1 {
         return failResult
@@ -980,6 +981,10 @@ func buildNote(_ record: RecordNode, noteID: NoteID) -> Note {
 // An Ancestry object is the thing we want to produce from a GEDCOM file.
 
 class Ancestry {
+    // in
+    let dataForest: DataForest
+    let treeRoots: [RecordNode]
+        
     var header = Header()
     var submitter = Submitter()
     
@@ -987,15 +992,26 @@ class Ancestry {
     var families = [FamilyID: Family]()
     var notes = [NoteID: Note]()
     var noteIDs = [NoteID]() // in the order they were read, please
+    
+    // error reporting
+    let errors: OutFile
 
     
     init(_ dataForest: DataForest, errors: OutFile) {
+        self.dataForest = dataForest
+        self.treeRoots = dataForest.rootNodes // can't initialize in declaration
+        self.errors = errors
+        
+        buildAncestry()
+    }
+    
+    func buildAncestry() {
 
-        header = buildHeader(dataForest[0])
+        header = buildHeader(treeRoots[0])
 
-        for r in 2 ... dataForest.rootCount - 2 {
+        for r in 2 ... treeRoots.count - 2 {
 
-            let treeRecord = dataForest[r]
+            let treeRecord = treeRoots[r]
             let dataLine = treeRecord.dataLine
             let lineNum = dataLine.lineNum // for labelling error messages
 
@@ -1018,7 +1034,7 @@ class Ancestry {
                 
                 people[index] = buildPerson(treeRecord, personID: index)
 
-                dataForest[r].dataLine.hasBeenRead = true
+                treeRoots[r].dataLine.hasBeenRead = true
             }
     
             else if kind == "F" {
@@ -1034,7 +1050,7 @@ class Ancestry {
         
                 families[index] = buildFamily(treeRecord, familyID: index)
 
-                dataForest[r].dataLine.hasBeenRead = true
+                treeRoots[r].dataLine.hasBeenRead = true
             }
     
             else if kind == "NI" || kind == "N" {
@@ -1071,7 +1087,7 @@ class Ancestry {
                 //     people[index]!.note = note
                 // }
 
-                dataForest[r].dataLine.hasBeenRead = true
+                treeRoots[r].dataLine.hasBeenRead = true
             }
     
             // else if kind == "N" {
@@ -1186,8 +1202,8 @@ class Ancestry {
         }
 
         var unusedLineCount = 0
-        for r in 2 ... dataForest.count - 2 {
-            unusedLineCount += reportUnusedRecords(root: dataForest[r])
+        for r in 2 ... treeRoots.count - 2 {
+            unusedLineCount += reportUnusedRecords(root: treeRoots[r])
         }
 
         errors.writeln("Lines ignored: \(unusedLineCount)")
