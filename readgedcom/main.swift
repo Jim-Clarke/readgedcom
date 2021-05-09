@@ -108,8 +108,11 @@ errorsfile = OutFile(errFile)
 
 // Start activity summary
 let now = Date()
-errorsfile.writeln("running program at \(now)")
-errorsfile.writeln("input file: \(infileName)")
+let formatter = DateFormatter()
+formatter.timeZone = TimeZone.current
+formatter.dateFormat = "yyy-MM-dd HH:mm:ss"
+errorsfile.writeln("Running program at \(formatter.string(from: now))")
+errorsfile.writeln("Input file: \(infileName)")
 
 
 // Read the input.
@@ -124,10 +127,16 @@ catch FileError.failedRead(let msg) {
 errorsfile.writeln("Lines read: \(rawData.count)")
 
 // Break the input lines into parts, as DataLine values.
-let data = parseData(rawData, errorsfile: &errorsfile)
+let data = ParsedData(rawLines: rawData, errors: errorsfile)
+errorsfile.writeln("Lines parsed: \(data.count)")
 
-// Do the data look OK?
-checkData(data, errorsfile: &errorsfile)
 
+// Build the forest of data.
+let dataForest = DataForest(data: data, errors: errorsfile)
+errorsfile.writeln("Records built: \(dataForest.rootCount)")
+
+
+// Build the actual family "tree".
+let ancestry = Ancestry(dataForest, errors: errorsfile)
 
 try OutFile.finalizeAll()
