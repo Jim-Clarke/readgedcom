@@ -250,36 +250,246 @@ struct Family {
     }
 }
 
-// Now in StringUtilities:
-//
-// // Given pattern, a regular expression, and target, possibly containing
-// // matches for pattern, return all the matches, including for each all the
-// // captured substrings.
-//
-// func applyRegex(pattern pat: String, target: String) -> [[String]] {
-//     // Reference: https://nshipster.com/swift-regular-expressions/
-//
-//     let regex = try! NSRegularExpression(pattern: pat, options: [])
-//
-//     let nsrange = NSRange(target.startIndex ..< target.endIndex, in: target)
-//     var matches = [[String]]()
-//     regex.enumerateMatches(in: target,
-//                            options: [],
-//                            range: nsrange
-//                           ) { (match, _, _) in
-//         guard let match = match else { return }
-//
-//         var matchingStrings = [String]()
-//         for i in 0 ..< match.numberOfRanges {
-//             let captureRange = Range(match.range(at: i), in: target)
-//             let matchingString = String(target[captureRange!])
-//             matchingStrings.append(matchingString)
-//         }
-//         matches.append(matchingStrings)
-//     }
-//
-//     return matches
-// }
+
+
+
+// An Ancestry object is the thing we want to produce from a GEDCOM file.
+
+class Ancestry {
+    // in
+    let dataForest: DataForest
+    let treeRoots: [RecordNode]
+        
+    // out: the parts of an Ancestry
+    
+    var header = Header()
+    var submitter = Submitter()
+    
+    var people = [PersonID: Person]()
+    var families = [FamilyID: Family]()
+    var notes = [NoteID: Note]()
+    var noteIDs = [NoteID]() // in the order they were read, please
+    
+    // error reporting
+    let errors: OutFile
+
+    
+    init(_ dataForest: DataForest, errors: OutFile) {
+        self.dataForest = dataForest
+        self.treeRoots = dataForest.rootNodes // can't initialize in declaration
+        self.errors = errors
+        
+        buildAncestry()
+        checkAncestry()
+    }
+    
+    
+    func buildAncestry() {
+
+        header = buildHeader(treeRoots[0])
+
+        for r in 2 ... treeRoots.count - 2 {
+
+            let treeRecord = treeRoots[r]
+            let dataLine = treeRecord.dataLine
+            let lineNum = dataLine.lineNum // for labelling error messages
+
+            guard let (kind, index) = atStrIntAt(dataLine.tag)
+            else {
+                errorsfile.writeln(lineNum,
+                    "line tag has bad pattern: \(dataLine.tag)")
+                continue
+            }
+    
+            if kind == "I" {
+                // It's an record describing an individual -- that is, a person.
+                if dataLine.value != "INDI" {
+                    errorsfile.writeln(lineNum, "line with tag I but value not INDI")
+                }
+                if people[index] != nil {
+                    errorsfile.writeln(lineNum, "repeated personID \(index)")
+                    continue
+                }
+                
+                people[index] = buildPerson(treeRecord, personID: index)
+
+                treeRoots[r].dataLine.hasBeenRead = true
+            }
+    
+            else if kind == "F" {
+                // It's an item describing a family.
+                if dataLine.value != "FAM" {
+                    errorsfile.writeln(lineNum, "line with tag F but value not FAM")
+                }
+        
+                if families[index] != nil {
+                    errorsfile.writeln(lineNum, "repeated familyID \(index)")
+                    continue
+                }
+        
+                families[index] = buildFamily(treeRecord, familyID: index)
+
+                treeRoots[r].dataLine.hasBeenRead = true
+            }
+    
+            else if kind == "NI" || kind == "N" {
+                // It's an item containing a note.
+                if !dataLine.value.starts(with: "NOTE") {
+                    errorsfile.writeln(lineNum,
+                        "line with tag NI or N but value not starting with NOTE")
+                }
+                let noteID: NoteID = dataLine.tag
+        
+                notes[noteID] = buildNote(treeRecord, noteID: noteID)
+                noteIDs.append(noteID)
+        
+                // We aren't ready to do anything with the actual note itself.
+        
+                // // Attach the note to the header or to the person it describes.
+                // let personID = noteClaims[noteID]
+                // if personID == nil {
+                //     header.notes.append(note)
+                // }
+                // else if people[personID!] != nil {
+                //     people[personID!]!.notes.append(note)
+                // }
+                // else {
+                //     errorsfile.writeln(lineNum, "misdirected note: wrong personID")
+                // }
+        
+                // if people[index] == nil || people[index]!.noteExpected != index {
+                //     // includes case where noteExpected is nil
+                //     errorsfile.writeln(lineNum, "misdirected note: wrong personID")
+                // } else if people[index]!.note != nil {
+                //     errorsfile.writeln(lineNum, "note where note already exists")
+                // } else {
+                //     people[index]!.note = note
+                // }
+
+                treeRoots[r].dataLine.hasBeenRead = true
+            }
+    
+            // else if kind == "N" {
+            //     // It's an item containing a note without a specified PersonID. If some
+            //     // Person has claimed it, attach it to that Person; otherwise, it must
+            //     // belong to the file header.
+            //     if !dataLine.value.starts(with: "NOTE") {
+            //         errorsfile.writeln(lineNum,
+            //             "line with tag N but value not starting with NOTE")
+            //     }
+            //
+            //     numNotes += 1
+            //
+            //     let note = buildNote(treeRecord)
+            //
+            //     // Attach the note to the header.
+            //
+            //     if header.note != nil {
+            //         errorsfile.writeln(lineNum, "note where note already exists")
+            //     } else {
+            //         header.note = note
+            //     }
+            //
+            //     topLevelRecords[r].dataLine.hasBeenRead = true
+            // }
+        
+        } // end of loop over records
+
+
+        // Put the child-parent information where it belongs: in the Child subrecords
+        // of Family records. We shouldn't have to do this, but the GEDCOM standard says
+        // to export this information to the child's Person record, and we're stuck
+        // dealing with that decision.
+
+        // Let's assume that all the dictionary accesses are for valid keys.
+
+        for f in families.keys {
+            for c in 0 ..< families[f]!.children.count {
+                let child = people[families[f]!.children[c].personID]
+                var pediDad: String?
+                var pediMom: String?
+                (pediDad, pediMom) = child!.pedigrees[f]!
+                families[f]!.children[c].relationToFather = pediDad
+                families[f]!.children[c].relationToMother = pediMom
+            }
+        }
+
+
+
+        // (Archeological) Post-construction checks on our new forest
+
+        // for who in people.values {
+        //     // if who.noteExpected != nil && who.note.count == 0 {
+        //     if who.noteExpected != nil && who.note == nil {
+        //         errorsfile.writeln("Person \(who.personID) should have a note.")
+        //     }
+        // }
+
+
+        // Straighten out the notes. Each Person has a list of NoteIDs for the
+        // notes it wants to print. Presumably the notes in the list should be
+        // printed in the order they are listed, so that's easy.
+        //
+        // But the header, which may also have notes, does not list them. We
+        // figure out which notes belong to the header by noticing that no
+        // person record wanted them, and we should print them in the order in
+        // which they appear in the export file. That's the same as the order
+        // in which they appear in the "notes" list.
+        //
+        // So: we already made a list of all the NoteIDs. Now we remove all the
+        // NoteIDs in the Person.noteIDs fields.
+
+        // Scan all the persons and remove the noteIDs they want to print from
+        // the list.
+        for who in people.values {
+            for nID in who.noteIDs {
+                if let index = noteIDs.firstIndex(of: nID) {
+                    noteIDs.remove(at: index)
+                }
+                // else{} We don't care. It's possible that some other person also
+                // wanted to use this note, so it might already have been removed.
+            }
+        }
+
+        // Tell the header about it.
+        header.noteIDs = noteIDs
+        
+    }
+
+    func checkAncestry() {
+        // Have we looked at all the information provided by the genealogist?
+
+        // Report on input records that were not used in the tree with the
+        // given root, and return the number found.
+        //
+        // THESE ERROR REPORTS ARE CRUCIAL. They tell us whether we've missed
+        // parts of the tree.
+
+        func reportUnusedRecords(root: RecordNode) -> Int {
+            var count = 0
+            if !root.dataLine.hasBeenRead {
+                count += 1
+                errors.writeln(root.dataLine.lineNum,
+                    "line ignored: \(root.dataLine.asRead)")
+            }
+            
+            for child in root.childNodes {
+                count += reportUnusedRecords(root: child)
+            }
+            
+            return count
+        }
+
+        var unusedLineCount = 0
+        for r in 2 ... treeRoots.count - 2 {
+            unusedLineCount += reportUnusedRecords(root: treeRoots[r])
+        }
+
+        errors.writeln("Lines ignored: \(unusedLineCount)")
+    }
+
+}
+
 
 // Return the two variable parts of a string of the form @AAA999@ -- that is,
 // an "at" sign, some upper-case ASCII letters, some digits, and then a final
@@ -975,240 +1185,6 @@ func buildNote(_ record: RecordNode, noteID: NoteID) -> Note {
     }
     
     return note
-}
-
-
-// An Ancestry object is the thing we want to produce from a GEDCOM file.
-
-class Ancestry {
-    // in
-    let dataForest: DataForest
-    let treeRoots: [RecordNode]
-        
-    var header = Header()
-    var submitter = Submitter()
-    
-    var people = [PersonID: Person]()
-    var families = [FamilyID: Family]()
-    var notes = [NoteID: Note]()
-    var noteIDs = [NoteID]() // in the order they were read, please
-    
-    // error reporting
-    let errors: OutFile
-
-    
-    init(_ dataForest: DataForest, errors: OutFile) {
-        self.dataForest = dataForest
-        self.treeRoots = dataForest.rootNodes // can't initialize in declaration
-        self.errors = errors
-        
-        buildAncestry()
-    }
-    
-    func buildAncestry() {
-
-        header = buildHeader(treeRoots[0])
-
-        for r in 2 ... treeRoots.count - 2 {
-
-            let treeRecord = treeRoots[r]
-            let dataLine = treeRecord.dataLine
-            let lineNum = dataLine.lineNum // for labelling error messages
-
-            guard let (kind, index) = atStrIntAt(dataLine.tag)
-            else {
-                errorsfile.writeln(lineNum,
-                    "line tag has bad pattern: \(dataLine.tag)")
-                continue
-            }
-    
-            if kind == "I" {
-                // It's an record describing an individual -- that is, a person.
-                if dataLine.value != "INDI" {
-                    errorsfile.writeln(lineNum, "line with tag I but value not INDI")
-                }
-                if people[index] != nil {
-                    errorsfile.writeln(lineNum, "repeated personID \(index)")
-                    continue
-                }
-                
-                people[index] = buildPerson(treeRecord, personID: index)
-
-                treeRoots[r].dataLine.hasBeenRead = true
-            }
-    
-            else if kind == "F" {
-                // It's an item describing a family.
-                if dataLine.value != "FAM" {
-                    errorsfile.writeln(lineNum, "line with tag F but value not FAM")
-                }
-        
-                if families[index] != nil {
-                    errorsfile.writeln(lineNum, "repeated familyID \(index)")
-                    continue
-                }
-        
-                families[index] = buildFamily(treeRecord, familyID: index)
-
-                treeRoots[r].dataLine.hasBeenRead = true
-            }
-    
-            else if kind == "NI" || kind == "N" {
-                // It's an item containing a note.
-                if !dataLine.value.starts(with: "NOTE") {
-                    errorsfile.writeln(lineNum,
-                        "line with tag NI or N but value not starting with NOTE")
-                }
-                let noteID: NoteID = dataLine.tag
-        
-                notes[noteID] = buildNote(treeRecord, noteID: noteID)
-                noteIDs.append(noteID)
-        
-                // We aren't ready to do anything with the actual note itself.
-        
-                // // Attach the note to the header or to the person it describes.
-                // let personID = noteClaims[noteID]
-                // if personID == nil {
-                //     header.notes.append(note)
-                // }
-                // else if people[personID!] != nil {
-                //     people[personID!]!.notes.append(note)
-                // }
-                // else {
-                //     errorsfile.writeln(lineNum, "misdirected note: wrong personID")
-                // }
-        
-                // if people[index] == nil || people[index]!.noteExpected != index {
-                //     // includes case where noteExpected is nil
-                //     errorsfile.writeln(lineNum, "misdirected note: wrong personID")
-                // } else if people[index]!.note != nil {
-                //     errorsfile.writeln(lineNum, "note where note already exists")
-                // } else {
-                //     people[index]!.note = note
-                // }
-
-                treeRoots[r].dataLine.hasBeenRead = true
-            }
-    
-            // else if kind == "N" {
-            //     // It's an item containing a note without a specified PersonID. If some
-            //     // Person has claimed it, attach it to that Person; otherwise, it must
-            //     // belong to the file header.
-            //     if !dataLine.value.starts(with: "NOTE") {
-            //         errorsfile.writeln(lineNum,
-            //             "line with tag N but value not starting with NOTE")
-            //     }
-            //
-            //     numNotes += 1
-            //
-            //     let note = buildNote(treeRecord)
-            //
-            //     // Attach the note to the header.
-            //
-            //     if header.note != nil {
-            //         errorsfile.writeln(lineNum, "note where note already exists")
-            //     } else {
-            //         header.note = note
-            //     }
-            //
-            //     topLevelRecords[r].dataLine.hasBeenRead = true
-            // }
-        
-        } // end of loop over records
-
-
-        // Put the child-parent information where it belongs: in the Child subrecords
-        // of Family records. We shouldn't have to do this, but the GEDCOM standard says
-        // to export this information to the child's Person record, and we're stuck
-        // dealing with that decision.
-
-        // Let's assume that all the dictionary accesses are for valid keys.
-
-        for f in families.keys {
-            for c in 0 ..< families[f]!.children.count {
-                let child = people[families[f]!.children[c].personID]
-                var pediDad: String?
-                var pediMom: String?
-                (pediDad, pediMom) = child!.pedigrees[f]!
-                families[f]!.children[c].relationToFather = pediDad
-                families[f]!.children[c].relationToMother = pediMom
-            }
-        }
-
-
-
-        // (Archeological) Post-construction checks on our new forest
-
-        // for who in people.values {
-        //     // if who.noteExpected != nil && who.note.count == 0 {
-        //     if who.noteExpected != nil && who.note == nil {
-        //         errorsfile.writeln("Person \(who.personID) should have a note.")
-        //     }
-        // }
-
-
-        // Straighten out the notes. Each Person has a list of NoteIDs for the
-        // notes it wants to print. Presumably the notes in the list should be
-        // printed in the order they are listed, so that's easy.
-        //
-        // But the header, which may also have notes, does not list them. We
-        // figure out which notes belong to the header by noticing that no
-        // person record wanted them, and we should print them in the order in
-        // which they appear in the export file. That's the same as the order
-        // in which they appear in the "notes" list.
-        //
-        // So: we already made a list of all the NoteIDs. Now we remove all the
-        // NoteIDs in the Person.noteIDs fields.
-
-        // Scan all the persons and remove the noteIDs they want to print from
-        // the list.
-        for who in people.values {
-            for nID in who.noteIDs {
-                if let index = noteIDs.firstIndex(of: nID) {
-                    noteIDs.remove(at: index)
-                }
-                // else{} We don't care. It's possible that some other person also
-                // wanted to use this note, so it might already have been removed.
-            }
-        }
-
-        // Tell the header about it.
-        header.noteIDs = noteIDs
-        
-    }
-
-    func check(dataForest: [RecordNode], errors: OutFile) {
-        // Have we looked at all the information provided by the genealogist?
-
-        // Report on input records that were not used in the tree with the
-        // given root, and return the number found.
-        //
-        // THESE ERROR REPORTS ARE CRUCIAL. They tell us whether we've missed
-        // parts of the tree.
-
-        func reportUnusedRecords(root: RecordNode) -> Int {
-            var count = 0
-            if !root.dataLine.hasBeenRead {
-                count += 1
-                errors.writeln(root.dataLine.lineNum,
-                    "line ignored: \(root.dataLine.asRead)")
-            }
-            
-            for child in root.childNodes {
-                count += reportUnusedRecords(root: child)
-            }
-            
-            return count
-        }
-
-        var unusedLineCount = 0
-        for r in 2 ... treeRoots.count - 2 {
-            unusedLineCount += reportUnusedRecords(root: treeRoots[r])
-        }
-
-        errors.writeln("Lines ignored: \(unusedLineCount)")
-    }
-
 }
 
 
