@@ -133,10 +133,13 @@ errorsfile.writeln("Lines parsed: \(data.count)")
 
 // Build the forest of data.
 let dataForest = DataForest(data: data, errors: errorsfile)
-errorsfile.writeln("Records built: \(dataForest.rootCount)")
+errorsfile.writeln("Records built: \(dataForest.roots.count)")
 
 
 // Build the actual family "tree".
 let ancestry = Ancestry(dataForest, errors: errorsfile)
+errorsfile.writeln("Persons: \(ancestry.people.count)")
+errorsfile.writeln("Families: \(ancestry.families.count)")
+errorsfile.writeln("Notes: \(ancestry.notes.count)")
 
 try OutFile.finalizeAll()

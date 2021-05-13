@@ -65,13 +65,6 @@ struct Note {
     }
 }
 
-// The Person with the PersonID has claimed a Note (farther down in the .ged
-// file) with the NoteID. If a Note has not been claimed, it belongs to the
-// header.
-//
-// This declaration is here because noteClaims is referred to by buildPerson.
-var noteClaims = [NoteID: PersonID]()
-
 
 struct Header {
     // Information from the very first top-level record in the GEDCOM file. We
@@ -101,7 +94,7 @@ struct Name {
     
     // GEDCOM field names are in parentheses below.
         
-    var baseName: String // (not a field) must be present
+    var baseName: String // (not a GEDCOM field) must be present
     var givenName: String? // (GIVN) given name, part of the baseName
     var surName: String? // (SURN) family name, the part of the baseName
     // enclosed in "/.../" unless part is broken off for surnamePrefix. If SURN
@@ -251,14 +244,12 @@ struct Family {
 }
 
 
-
-
 // An Ancestry object is the thing we want to produce from a GEDCOM file.
 
 class Ancestry {
     // in
     let dataForest: DataForest
-    let treeRoots: [RecordNode]
+    // let treeRoots: [RecordNode]
         
     // out: the parts of an Ancestry
     
@@ -268,7 +259,8 @@ class Ancestry {
     var people = [PersonID: Person]()
     var families = [FamilyID: Family]()
     var notes = [NoteID: Note]()
-    var noteIDs = [NoteID]() // in the order they were read, please
+    var noteIDs = [NoteID]() // in the order they were read, please -- so we
+    // can't use notes.keys
     
     // error reporting
     let errors: OutFile
@@ -276,8 +268,16 @@ class Ancestry {
     
     init(_ dataForest: DataForest, errors: OutFile) {
         self.dataForest = dataForest
-        self.treeRoots = dataForest.rootNodes // can't initialize in declaration
+        // self.treeRoots = dataForest.roots // can't initialize in declaration
         self.errors = errors
+        
+        // We've now copied the raw data lines three times, I think. Probably
+        // this is not a serious problem, because (1) the genealogy for one
+        // family shouldn't have more than a few tens of thousands of lines,
+        // and (2) Swift is supposed to be clever about not actually making new
+        // copies of Strings if it can help it.
+        //
+        // But still.
         
         buildAncestry()
         checkAncestry()
@@ -286,120 +286,80 @@ class Ancestry {
     
     func buildAncestry() {
 
-        header = buildHeader(treeRoots[0])
+        header = buildHeader(dataForest.roots[0])
 
-        for r in 2 ... treeRoots.count - 2 {
+        for r in 2 ... dataForest.roots.count - 2 {
 
-            let treeRecord = treeRoots[r]
-            let dataLine = treeRecord.dataLine
+            let treeRecord = dataForest.roots[r] // an object reference
+            let dataLine = treeRecord.dataLine // also an object reference
             let lineNum = dataLine.lineNum // for labelling error messages
 
             guard let (kind, index) = atStrIntAt(dataLine.tag)
             else {
-                errorsfile.writeln(lineNum,
+                errors.writeln(lineNum,
                     "line tag has bad pattern: \(dataLine.tag)")
                 continue
             }
     
-            if kind == "I" {
-                // It's an record describing an individual -- that is, a person.
+            switch kind {
+            case "I":
                 if dataLine.value != "INDI" {
-                    errorsfile.writeln(lineNum, "line with tag I but value not INDI")
+                    errors.writeln(lineNum,
+                                       "line with tag I but value not INDI"
+                    )
                 }
                 if people[index] != nil {
-                    errorsfile.writeln(lineNum, "repeated personID \(index)")
+                    errors.writeln(lineNum, "repeated personID \(index)")
                     continue
                 }
                 
                 people[index] = buildPerson(treeRecord, personID: index)
-
-                treeRoots[r].dataLine.hasBeenRead = true
-            }
-    
-            else if kind == "F" {
-                // It's an item describing a family.
+                
+                dataLine.hasBeenRead = true
+ 
+            case "F":
                 if dataLine.value != "FAM" {
-                    errorsfile.writeln(lineNum, "line with tag F but value not FAM")
+                    errors.writeln(lineNum, "line with tag F but value not FAM")
                 }
-        
                 if families[index] != nil {
-                    errorsfile.writeln(lineNum, "repeated familyID \(index)")
+                    errors.writeln(lineNum, "repeated familyID \(index)")
                     continue
                 }
-        
+                
                 families[index] = buildFamily(treeRecord, familyID: index)
-
-                treeRoots[r].dataLine.hasBeenRead = true
-            }
-    
-            else if kind == "NI" || kind == "N" {
-                // It's an item containing a note.
+                
+                dataLine.hasBeenRead = true
+  
+            case "NI", "N":
                 if !dataLine.value.starts(with: "NOTE") {
-                    errorsfile.writeln(lineNum,
-                        "line with tag NI or N but value not starting with NOTE")
+                    errors.writeln(lineNum,
+                        "line with tag NI or N but value not starting with NOTE"
+                    )
                 }
                 let noteID: NoteID = dataLine.tag
-        
+                if notes[noteID] != nil {
+                    errors.writeln(lineNum, "repeated noteID \(noteID)")
+                    continue
+                }
+                
                 notes[noteID] = buildNote(treeRecord, noteID: noteID)
                 noteIDs.append(noteID)
-        
-                // We aren't ready to do anything with the actual note itself.
-        
-                // // Attach the note to the header or to the person it describes.
-                // let personID = noteClaims[noteID]
-                // if personID == nil {
-                //     header.notes.append(note)
-                // }
-                // else if people[personID!] != nil {
-                //     people[personID!]!.notes.append(note)
-                // }
-                // else {
-                //     errorsfile.writeln(lineNum, "misdirected note: wrong personID")
-                // }
-        
-                // if people[index] == nil || people[index]!.noteExpected != index {
-                //     // includes case where noteExpected is nil
-                //     errorsfile.writeln(lineNum, "misdirected note: wrong personID")
-                // } else if people[index]!.note != nil {
-                //     errorsfile.writeln(lineNum, "note where note already exists")
-                // } else {
-                //     people[index]!.note = note
-                // }
-
-                treeRoots[r].dataLine.hasBeenRead = true
+                
+                dataLine.hasBeenRead = true
+  
+            default:
+                errors.writeln(lineNum, "line with unknown tag \(kind)")
             }
-    
-            // else if kind == "N" {
-            //     // It's an item containing a note without a specified PersonID. If some
-            //     // Person has claimed it, attach it to that Person; otherwise, it must
-            //     // belong to the file header.
-            //     if !dataLine.value.starts(with: "NOTE") {
-            //         errorsfile.writeln(lineNum,
-            //             "line with tag N but value not starting with NOTE")
-            //     }
-            //
-            //     numNotes += 1
-            //
-            //     let note = buildNote(treeRecord)
-            //
-            //     // Attach the note to the header.
-            //
-            //     if header.note != nil {
-            //         errorsfile.writeln(lineNum, "note where note already exists")
-            //     } else {
-            //         header.note = note
-            //     }
-            //
-            //     topLevelRecords[r].dataLine.hasBeenRead = true
-            // }
         
         } // end of loop over records
 
 
-        // Put the child-parent information where it belongs: in the Child subrecords
-        // of Family records. We shouldn't have to do this, but the GEDCOM standard says
-        // to export this information to the child's Person record, and we're stuck
-        // dealing with that decision.
+        // Put the child-parent information where it belongs: in the Child
+        // subrecords of Family records.
+        //
+        // We shouldn't have to do this, but the GEDCOM standard says to
+        // export this information to the child's Person record, and we're
+        // stuck dealing with that decision.
 
         // Let's assume that all the dictionary accesses are for valid keys.
 
@@ -415,17 +375,6 @@ class Ancestry {
         }
 
 
-
-        // (Archeological) Post-construction checks on our new forest
-
-        // for who in people.values {
-        //     // if who.noteExpected != nil && who.note.count == 0 {
-        //     if who.noteExpected != nil && who.note == nil {
-        //         errorsfile.writeln("Person \(who.personID) should have a note.")
-        //     }
-        // }
-
-
         // Straighten out the notes. Each Person has a list of NoteIDs for the
         // notes it wants to print. Presumably the notes in the list should be
         // printed in the order they are listed, so that's easy.
@@ -436,8 +385,9 @@ class Ancestry {
         // which they appear in the export file. That's the same as the order
         // in which they appear in the "notes" list.
         //
-        // So: we already made a list of all the NoteIDs. Now we remove all the
-        // NoteIDs in the Person.noteIDs fields.
+        // So: we already made a list of all the NoteIDs. Now we remove from the
+        // list all the NoteIDs that are in the Person.noteIDs field for some
+        // Person (that is, for at least one Person).
 
         // Scan all the persons and remove the noteIDs they want to print from
         // the list.
@@ -446,15 +396,17 @@ class Ancestry {
                 if let index = noteIDs.firstIndex(of: nID) {
                     noteIDs.remove(at: index)
                 }
-                // else{} We don't care. It's possible that some other person also
-                // wanted to use this note, so it might already have been removed.
+                // else{} We don't care. It's possible that some other person
+                // also wanted to use this note, so it might already have been
+                // removed.
             }
         }
 
-        // Tell the header about it.
+        // Tell the header about the remaining noteIDs.
         header.noteIDs = noteIDs
         
-    }
+    } // end of buildAncestry
+
 
     func checkAncestry() {
         // Have we looked at all the information provided by the genealogist?
@@ -481,14 +433,695 @@ class Ancestry {
         }
 
         var unusedLineCount = 0
-        for r in 2 ... treeRoots.count - 2 {
-            unusedLineCount += reportUnusedRecords(root: treeRoots[r])
+        for r in 2 ... dataForest.roots.count - 2 {
+            unusedLineCount += reportUnusedRecords(root: dataForest.roots[r])
         }
 
         errors.writeln("Lines ignored: \(unusedLineCount)")
     }
 
-}
+
+    // Assign value to toBeSet if it is nil. If it is not nil, do not change its
+    // value, but report a problem to errors, referring to the line number
+    // lineNum, the identifier associated with toBeSet, and the current value
+    // of toBeSet.
+
+    func checkedAssignString(toBeSet: inout String?,
+                             value: String,
+                             identifier: String,
+                             lineNum i: Int
+    )
+    {
+        if toBeSet != nil {
+            errors.writeln(i, "attempt to overwrite \(identifier) \(toBeSet!)")
+            return
+        }
+        toBeSet = value
+    }
+
+
+    // For each child node of parent, if the tag matches a tag in tags, extract
+    // the value and return it as an element of the returned array. The
+    // returned values are in the same order as the corresponding tags.
+    //
+    // If there is no value corresponding to a tag, nil is returned for that
+    // tag. If a tag appears two or more times, the values after the first are
+    // ignored, with an error message. All nodes that have matching tags are
+    // marked as read, including even those that are ignored repeats.
+    //
+    // Records with tags that are not in the list of tags are ignored and are
+    // not marked as read.
+    //
+    // This function checks only direct child nodes of parent -- not grandchild
+    // nodes.
+
+    func getFromChildrenByTags(parent: RecordNode, tags: [String]) -> [String?]
+    {
+        var result: [String?] = Array(repeating: nil, count: tags.count)
+    
+        for node in parent.childNodes {
+            let tag = node.dataLine.tag
+            if let which = tags.firstIndex(of: tag) {
+                if result[which] != nil {
+                    errors.writeln(node.dataLine.lineNum,
+                        "attempt to overwrite \(tag) value \(result[which]!)")
+                } else {
+                    result[which] = node.dataLine.value
+                }
+                node.dataLine.hasBeenRead = true // whether we used it or not
+            }
+        }
+    
+        return result
+    }
+
+
+    // Return a DateTime from record -- a node tagged "DATE" containing a date
+    // -- and its child node tagged "TIME". There may be other children, but
+    // the TIME node must be the first child node. Both the DATE node and the
+    // TIME node are marked as read, except that if record is not a DATE node,
+    // then the TIME node is not read, even if it is present.
+    //
+    // If problems are encountered, an error is reported, and nil is returned.
+
+    func getDateTime(record: RecordNode) -> DateTime?
+    {
+        guard record.dataLine.tag == "DATE" else {
+            errors.writeln(record.dataLine.lineNum,
+                "tag DATE not found when expected")
+            return nil
+        }
+        record.dataLine.hasBeenRead = true
+    
+        guard record.childNodes.count > 0
+                && record.childNodes[0].dataLine.tag == "TIME" else {
+            errors.writeln(record.dataLine.lineNum,
+                "tag TIME not found (in child record) when expected")
+            return nil
+        }
+        record.childNodes[0].dataLine.hasBeenRead = true
+
+        return DateTime(date: record.dataLine.value,
+            time: record.childNodes[0].dataLine.value)
+    }
+
+
+    // Extract bibliographic information -- not part of the records about people
+    // and families. Actual genealogists might not want all this stuff.
+
+    func buildHeader(_ record: RecordNode) -> Header {
+        var header = Header()
+
+        // let dataLine = record.dataLine // unused?
+        for child in record.childNodes {
+            // Let's remember it's a tree "child", not a genealogical child.
+            let line = child.dataLine
+            let lineNum = line.lineNum // used frequently in error messages
+
+            if line.tag == "DATE" {
+                header.when = getDateTime(record: child)
+            }
+    
+            else if line.tag == "SOUR" {
+                let values = getFromChildrenByTags(parent: child,
+                                                   tags: ["NAME", "VERS"]
+                )
+                if values[0] != nil {
+                    checkedAssignString(toBeSet: &header.software,
+                                        value: values[0]!, 
+                                        identifier: "software",
+                                        lineNum: lineNum
+                    )
+                }
+                if values[1] != nil {
+                    checkedAssignString(toBeSet: &header.softwareVersion,
+                                        value: values[1]!,
+                                        identifier: "software version",
+                                        lineNum: lineNum
+                    )
+                }
+            }
+
+            else if line.tag == "GEDC" {
+                let values = getFromChildrenByTags(parent: child, tags: ["VERS"])
+                if values[0] != nil {
+                    checkedAssignString(toBeSet: &header.gedcomVersion,
+                                        value: values[0]!,
+                                        identifier: "GEDCOM version",
+                                        lineNum: lineNum
+                    )
+                }
+            }
+            
+            // There are lines in the header we don't feel obliged to handle.
+            // Consequently, this check doesn't happen:
+            // else {
+            // errors.writeln(lineNum, "line ignored: \(child.dataLine.asRead)")
+            // }
+ 
+        } // end of the loop on child records
+
+        return header
+
+    } // end of buildHeader
+
+
+    // Return a Person constructed from the record and the personID.
+    //
+    // The personID is available from the record itself, but it is extracted and
+    // checked before this function is called.
+
+    func buildPerson(_ record: RecordNode, personID: PersonID) -> Person {
+        var who = Person(personID)
+    
+        // let dataLine = record.dataLine // unused?
+        for child in record.childNodes { 
+            // Let's remember it's a tree "child", not a genealogical child.
+            let line = child.dataLine
+            let lineNum = line.lineNum // used frequently in error messages
+
+            if line.tag == "CHAN" {
+                if line.value != "" {
+                    errors.writeln(lineNum, "non-empty value in CHAN line")
+                }
+
+                // Read the child DATE node and grandchild TIME node.
+                if child.childNodes.count < 1 {
+                    errors.writeln(child.dataLine.lineNum,
+                        "CHAN node doesn't start with a DATE child")
+                }
+                else {
+                    who.changeDate = getDateTime(record: child.childNodes[0])
+                }
+                child.dataLine.hasBeenRead = true
+            }
+        
+            else if line.tag == "NAME" {
+                // var name = Name(baseName: line.value)
+                let trimmedName = line.value.trimmingCharacters(in: .whitespaces)
+                var name = Name(baseName: trimmedName)
+                // if line.value == "" {
+                if trimmedName == "" {
+                    errors.writeln(lineNum, "empty name in NAME record")
+                }
+
+                // Set the dangling extras for a name. This is fairly ugly.
+                let values = getFromChildrenByTags(parent: child,
+                                                   tags:
+                    ["TYPE", "GIVN", "SURN", "NPFX", "NICK", "SPFX", "NSFX"])
+                (name.type, name.givenName, name.surName, name.prefix, name.nickName,
+                    name.surnamePrefix, name.suffix)
+                    =
+                    (values[0], values[1], values[2], values[3], values[4],
+                        values[5], values[6])
+
+                switch name.type {
+                case nil:
+                    // the usual case, I think
+                    break;
+
+                case "aka":
+                    name.kind = .aka
+                case "birth":
+                    name.kind = .birth
+                case "immigrant":
+                    name.kind = .immigrant
+                case "maiden":
+                    name.kind = .maiden
+                case "married":
+                    name.kind = .married
+                
+                default:
+                    break;
+                }
+           
+                who.names.append(name)
+                child.dataLine.hasBeenRead = true
+            }
+        
+            // The ALIA record is no longer defined in GEDCOM.
+            // else if line.tag == "ALIA" {
+        
+            else if line.tag == "SEX" {
+                checkedAssignString(toBeSet: &who.sex, value: line.value,
+                    identifier: "sex", lineNum: lineNum)
+                child.dataLine.hasBeenRead = true
+            }
+        
+            // Needed only if we get nobility into the family.
+            else if line.tag == "TITL" {
+                checkedAssignString(toBeSet: &who.title, value: line.value,
+                    identifier: "title", lineNum: lineNum)
+                child.dataLine.hasBeenRead = true
+            }
+        
+            else if ["BIRT", "DEAT", "BURI", "EMIG"].contains(line.tag) {
+                // events that need a date and a place
+                if line.value != "" {
+                    errors.writeln(lineNum,
+                        "expected empty value in line: \(line)")
+                }
+                var overwriteError = false
+                switch line.tag {
+                case "BIRT":
+                    overwriteError = who.birth != nil
+                case "DEAT":
+                    overwriteError = who.death != nil
+                case "BURI":
+                    overwriteError = who.burial != nil
+                case "EMIG":
+                    overwriteError = who.emigration != nil
+                default:
+                    errors.writeln(lineNum,
+                        "supposedly impossible tag \(line.tag) in line: \(line)")
+                }
+                if overwriteError {
+                    // I'd like to include the value that would be overwritten,
+                    // but that would require excessive gymnastics.
+                    errors.writeln(lineNum,
+                        "line attempts to overwrite value: \(line)")
+                } else {
+                    let values = getFromChildrenByTags(parent: child,
+                                                       tags: ["DATE", "PLAC"])
+                    var newEvent: Event? = nil
+                    if values[0] != nil || values[1] != nil {
+                        newEvent = Event(date: values[0], place: values[1])
+                    }
+                    switch line.tag {
+                    case "BIRT":
+                        who.birth = newEvent
+                    case "DEAT":
+                        who.death = newEvent
+                    case "BURI":
+                        who.burial = newEvent
+                    case "EMIG":
+                        who.emigration = newEvent
+                    default:
+                        break
+                    }
+                }
+                child.dataLine.hasBeenRead = true
+            }
+                
+            else if line.tag == "NOTE" {
+                // if let (valueKind, valueIndex) = atStrIntAt(line.value) {
+                if let (valueKind, _) = atStrIntAt(line.value) {
+                    if valueKind != "NI" && valueKind != "N" {
+                        errors.writeln(lineNum, "bad note ID: \(line.value)")
+                    // } else if who.noteExpected != nil {
+                    //     errors.writeln(lineNum, "second note expected for same person")
+                    } else {
+                        who.noteIDs.append(line.value)
+                    }
+                } else {
+                    errors.writeln(lineNum, "bad note ID: \(line.value)")
+                }
+                child.dataLine.hasBeenRead = true
+            }
+
+            else if line.tag == "FAMS" || line.tag == "FAMC" {
+                if let (valueKind, valueIndex) = atStrIntAt(line.value) {
+                    if valueKind != "F" {
+                        errors.writeln(lineNum, "bad family ID: \(line.value)")
+                    } else {
+                        if line.tag == "FAMS" {
+                            if who.familyS == nil {
+                                who.familyS = [FamilyID]()
+                            }
+                            who.familyS!.append(valueIndex)
+                        } else {
+                            assert(line.tag == "FAMC")
+                            if who.familyC == nil {
+                                who.familyC = [FamilyID]()
+                            }
+                            who.familyC!.append(valueIndex)
+
+                            // In GEDCOM 5.5.5, the pedigree (tag "PEDI") is
+                            // part of the child's FAMC record, and Gramps does
+                            // this. Gramps also allows alternatives to PEDI:
+                            // _MREL and _FREL for the relationships to the
+                            // parents separately.
+                            //
+                            // This is an odd place to put this information,
+                            // which is really part of the family relationship,
+                            // not the child alone. But here we are.
+                            let values = getFromChildrenByTags(parent: child,
+                                tags: ["PEDI", "_FREL", "_MREL"])
+                            // There can be a PEDI for both relationships, or an
+                            // _FREL and/or an _MREL, but not both a PEDI and
+                            // some of the other two.
+                            if values[0] != nil {
+                                if values[1] != nil || values[2] != nil {
+                                    errors.writeln(lineNum,
+                                "too much child-parent relationship information")
+                                }
+                                who.pedigrees[valueIndex] = (values[0], values[0])
+                            }
+                            else {
+                                who.pedigrees[valueIndex] = (values[1], values[2])
+                                // printerr("pedigrees: \(values[1] ?? "nil") \(values[2] ?? "nil")")
+                            }
+                        }
+                    }
+                } else {
+                    errors.writeln(lineNum, "bad family ID: \(line.value)")
+                }
+                child.dataLine.hasBeenRead = true
+            }
+                            
+            else {
+                errors.writeln(lineNum, "line ignored: \(child.dataLine.asRead)")
+            }
+            
+        } // end of the loop on child records
+    
+        return who
+
+    } // end of buildPerson
+
+
+    // Return a Family constructed from the record and the familyID.
+    //
+    // The familyID is available from the record itself, but it is extracted and
+    // checked before this function is called.
+
+    func buildFamily(_ record: RecordNode, familyID: FamilyID) -> Family {
+        var family = Family(familyID)
+
+        // let dataLine = record.dataLine // unused?
+        for child in record.childNodes {
+            // Let's remember it's a tree "child", not a genealogical child.
+            let line = child.dataLine
+            let lineNum = line.lineNum // used frequently in error messages
+
+            if line.tag == "CHAN" {
+                if line.value != "" {
+                    errors.writeln(lineNum, "non-empty value in CHAN line")
+                }
+
+                // Read the child DATE node and grandchild TIME node.
+                if child.childNodes.count < 1 {
+                    errors.writeln(child.dataLine.lineNum,
+                        "CHAN node doesn't start with a DATE child")
+                }
+                else {
+                    family.changeDate = getDateTime(record: child.childNodes[0])
+                }
+                child.dataLine.hasBeenRead = true
+            }
+        
+            else if line.tag == "HUSB" || line.tag == "WIFE" {
+                if let (valueKind, valueIndex) = atStrIntAt(line.value) {
+                    if valueKind != "I" {
+                        errors.writeln(lineNum,
+                            "bad husband/wife personID: \(line.value)")
+                    } else {
+                        if line.tag == "HUSB" {
+                            if family.husband != nil {
+                                errors.writeln(lineNum,
+                                    "second personID for husband")
+                            }
+                            family.husband = valueIndex
+                        } else {
+                            if family.wife != nil {
+                                errors.writeln(lineNum,
+                                    "second personID for wife")
+                            }
+                            family.wife = valueIndex
+                        }
+                    }
+                } else {
+                    errors.writeln(lineNum,
+                        "bad husband/wife personID: \(line.value)")
+                }
+                child.dataLine.hasBeenRead = true
+            }
+
+            else if line.tag == "MARR" {
+                // Here, family.marriage is an Event, but for GEDCOM, the "MARR"
+                // record "is not only used to record marriages, but for
+                // recording every relationship type between two people".
+                // However, this program was written to decipher files that used
+                // MARR only to record marriage events.
+                //
+                // Later users, beware -- or at least, be aware.
+            
+                if line.value != "" {
+                    errors.writeln(lineNum, "MARR line with non-empty value")
+                }
+                let values = getFromChildrenByTags(parent: child,
+                                                   tags: ["DATE", "PLAC"])
+                var newEvent: Event? = nil
+                if values[0] != nil || values[1] != nil {
+                    newEvent = Event(date: values[0], place: values[1])
+                }
+
+                if newEvent != nil {
+                    if family.marriage != nil {
+                        errors.writeln(lineNum,
+                            "attempt to overwrite existing marriage event")
+                    } else {
+                        family.marriage = newEvent
+                    }
+                }
+
+                child.dataLine.hasBeenRead = true
+            }
+
+            else if line.tag == "DIV" {
+                // A divorce with line.value "Y" is simply noted to have
+                // occurred. If there is no line.value, there may be a date or
+                // place. We have few examples, so may have to add other
+                // attributes later.
+            
+                if line.value != "" && line.value != "Y" {
+                    errors.writeln(lineNum, "DIVorce line with unknown value")
+                }
+            
+                family.endStatus = "Divorce"
+            
+                if line.value != "Y" {
+                    // If "Y", all we know is that there was a divorce.
+                }
+                let values = getFromChildrenByTags(parent: child,
+                    tags: ["DATE", "PLAC"])
+                var newEvent: Event? = nil
+                if values[0] != nil || values[1] != nil {
+                    newEvent = Event(date: values[0], place: values[1])
+                }
+
+                if newEvent != nil {
+                    if family.endEvent != nil {
+                        errors.writeln(lineNum,
+                          "attempt to overwrite existing end event of marriage")
+                    } else {
+                        family.endEvent = newEvent
+                    }
+                }
+
+                child.dataLine.hasBeenRead = true
+            }
+
+            else if line.tag == "EVEN" {
+                // It's an "event". It is an attribute of the family, not the
+                // marriage (if there is a marriage), even if it is, for
+                // example, a divorce. The marriage is an event, and the
+                // divorce (or death) is also an event -- one that ends the
+                // family, not the marriage.
+                //
+                // I think that's what the GEDCOM standard is saying, and it
+                // seems reasonable.
+                //
+                // Gramps uses events of type _MSTAT and _MEND to explain how a
+                // family starts and ends. The original .GED files (produced
+                // with Family Tree Maker) used _FA1 records to state "marriage
+                // facts", but there were only a couple -- one about the end of
+                // a marriage, or rather family (by death), and one about the
+                // location of a marriage. I'm moving that information (by
+                // means of operations in Gramps, not by editing the .ged
+                // files) to MARR and _MEND records, and any references you see
+                // in this program to "_FA1" are the skeletons of dinosaurs.
+                //
+                // Within the GEDCOM rules, I'm not sure it's possible to do
+                // better than the _MSTAT and _MEND records. On the other hand,
+                // other (non-Gramps) genealogical programs may handle these
+                // things differently. That's a possible problem ... for later.
+            
+                // First child node should be tagged "TYPE", with value "_MSTAT"
+                // or "_MEND". Other child nodes may be DATE or PLAC.
+                if child.childNodes.count < 1 {
+                    errors.writeln(lineNum,
+                        "EVEN record does not have a TYPE record")
+                        // Don't even label the node as read
+                        continue
+                }
+            
+                let typeLine = child.childNodes[0].dataLine
+                switch typeLine.value {
+                
+                case "Death":
+                    // At least one spouse died. There may be a date and a
+                    // place, giving a family.endEvent, but we ignore the
+                    // line.value, because it probably says "there was a death".
+                    family.endStatus = "Death"
+                    let values = getFromChildrenByTags(parent: child,
+                                                       tags: ["DATE", "PLAC"])
+                    if values[0] != nil || values[1] != nil {
+                        if family.endEvent != nil {
+                            errors.writeln(lineNum,
+                          "attempt to overwrite existing end-of-marriage event")
+                        } else {
+                            family.endEvent
+                                = Event(date: values[0], place: values[1])
+                        }
+                    }
+                    child.childNodes[0].dataLine.hasBeenRead = true
+            
+                // case "_FA1":
+                    // Family Tree Maker used this tag to record "facts" in the
+                    // old .GED files, in just two places, both related to
+                    // information about marriages. Gramps copied the tag in
+                    // those two places. 
+                    // 
+                    // Both instances of _FA1 have been
+                    // replaced by more appropriate directly marriage-related
+                    // tags. I hope _FA1 never reappears, but if it does, how
+                    // it is handled will depend on what information it holds.
+                    // Meanwhile, it's gone!
+                
+                case "_MSTAT":
+                    // We hope not to be using this case, but here it is.
+                
+                    // There are no further child nodes. We simply store
+                    // line.value as beginStatus.
+                    family.beginStatus = line.value
+                    child.childNodes[0].dataLine.hasBeenRead = true
+                
+                case "_MEND":
+                    // We hope not to be using this case, but here it is.
+                
+                    // We store line.value as endStatus. There may be DATE and
+                    // PLAC values that locate the family-ending event.
+                    family.endStatus = line.value
+                    let values = getFromChildrenByTags(parent: child,
+                        tags: ["DATE", "PLAC"])
+                    if values[0] != nil || values[1] != nil {
+                        if family.endEvent != nil {
+                            errors.writeln(lineNum,
+                          "attempt to overwrite existing end-of-marriage event")
+                        } else {
+                            family.endEvent
+                                = Event(date: values[0], place: values[1])
+                        }
+                    }
+                    child.childNodes[0].dataLine.hasBeenRead = true
+            
+                default:
+                    errors.writeln(lineNum, "bad family event \(typeLine.value)")
+                    // Don't label any nodes as read.
+                    continue
+                }
+            
+                child.dataLine.hasBeenRead = true
+            }
+
+            else if line.tag == "CHIL" {
+                if let (valueKind, valueIndex) = atStrIntAt(line.value) {
+                    if valueKind != "I" {
+                        errors.writeln(lineNum,
+                            "bad child personID: \(line.value)")
+                    } else {
+                        let child = Child(valueIndex)
+                    
+                        // In GEDCOM 5.5.5, only the child's personID is given.
+                        // We're going to add more information later -- such as
+                        // the child's relation to its father and/or mother --
+                        // but we can't get it while reading the family record.
+                        // let linesUsed = buildChild(childToBuild: &child,
+                        //     firstLine: record.lines[i + 1],
+                        //     secondLine: record.lines[i + 2],
+                        //     baseLineNumber: lineNum,
+                        //     baseLevel: line.level,
+                        //     errorsFile: &errorsfile
+                        //     )
+                        if family.children.first(where:
+                                    {$0.personID == child.personID})
+                            != nil {
+                            errors.writeln(lineNum, "duplicate child personID")
+                        } else {
+                            family.children.append(child)
+                        }
+                    }
+                } else {
+                    errors.writeln(lineNum, "bad child personID: \(line.value)")
+                }
+                child.dataLine.hasBeenRead = true // even if we couldn't use it
+            }
+             
+            else {
+                errors.writeln(lineNum, "line ignored: \(child.dataLine.asRead)")
+            }
+            
+        } // end of the loop on child records
+    
+        return family
+        
+    } // end of buildFamily
+
+
+    // Return a note -- that is, an array of Strings, each String a paragraph --
+    // constructed from the record. The pointer in the first line of the record
+    // is not used here; the caller should extract it to decide where to put the
+    // note.
+
+    func buildNote(_ record: RecordNode, noteID: NoteID) -> Note {
+        var note = Note(noteID)
+    
+        let dataLine = record.dataLine
+    
+        var noteLine = ""
+
+        // The note may start in the value segment of the first line.
+        if dataLine.value.starts(with: "NOTE ") {
+            let lineZero = dataLine.value
+            let range = lineZero.index(lineZero.startIndex, offsetBy: 5)
+                ..< lineZero.endIndex
+            noteLine += lineZero[range]
+        }
+
+        for node in record.childNodes {
+            let lineNum = node.dataLine.lineNum
+            if node.childNodes.count != 0 {
+                errors.writeln(lineNum, "bad line level in NOTE")
+                continue
+            }
+
+            let line = node.dataLine.value
+            let tag = node.dataLine.tag
+
+            if tag == "CONT" {
+                note.contents.append(noteLine)
+                noteLine = ""
+            }
+            if tag == "CONC" || tag == "CONT" {
+                noteLine += line
+            } else {
+                errors.writeln(lineNum, "bad line tag in NOTE")
+            }
+        
+            node.dataLine.hasBeenRead = true
+        }
+    
+        if noteLine != "" {
+            note.contents.append(noteLine)
+        }
+    
+        return note
+    
+    } // end of buildNote
+
+
+} // end of Ancestry class definition
 
 
 // Return the two variable parts of a string of the form @AAA999@ -- that is,
@@ -528,663 +1161,6 @@ func atStrIntAt(_ inStr: String) -> (String, Int)? {
     // }
     
     return (matchStrings[1], secondInt)
-}
-
-
-// Assign value to toBeSet if it is nil. If it is not nil, do not change its
-// value, but report a problem to errorsFile, referring to the line number
-// lineNum, the identifier associated with toBeSet, and the current value of
-// toBeSet.
-
-func checkedAssignString(toBeSet: inout String?,
-        value: String,
-        identifier: String,
-        lineNum i: Int,
-        errorsFile errors: OutFile) {
-    if toBeSet != nil {
-        errors.writeln(i, "attempt to overwrite \(identifier) \(toBeSet!)")
-        return
-    }
-    toBeSet = value
-}
-
-
-// For each child node of parent, if the tag matches a tag in tags, extract the
-// value and return it as an element of the returned array. The returned values
-// are in the same order as the corresponding tags.
-//
-// If there is no value corresponding to a tag, nil is returned for that tag.
-// If a tag appears two or more times, the values after the first are ignored,
-// with an error message. All nodes that have matching tags are marked as read,
-// including even those that are ignored repeats.
-//
-// Records with tags that are not in the list of tags are ignored and are not
-// marked as read.
-//
-// This function checks only direct child nodes of parent -- not grandchild
-// nodes.
-
-func getFromChildrenByTags(parent: RecordNode, tags: [String],
-        errorsFile errors: OutFile) -> [String?] {
-    var result: [String?] = Array(repeating: nil, count: tags.count)
-    
-    for node in parent.childNodes {
-        let tag = node.dataLine.tag
-        if let which = tags.firstIndex(of: tag) {
-            if result[which] != nil {
-                errors.writeln(node.dataLine.lineNum,
-                    "attempt to overwrite \(tag) value \(result[which]!)")
-            } else {
-                result[which] = node.dataLine.value
-            }
-            node.dataLine.hasBeenRead = true // whether we used it or not
-        }
-    }
-    
-    return result
-}
-
-// Return a DateTime from record -- a node tagged "DATE" containing a date --
-// and its child node tagged "TIME". There may be other children, but the TIME
-// node must be the first child node. Both the DATE node and the TIME node are
-// marked as read, except that if record is not a DATE node, then the TIME node
-// is not read, even if it is present.
-//
-// If problems are encountered, an error message is produced, and the return
-// value is nil.
-
-func getDateTime(record: RecordNode,
-        errorsFile errors: OutFile) -> DateTime? {
-    guard record.dataLine.tag == "DATE" else {
-        errors.writeln(record.dataLine.lineNum,
-            "tag DATE not found when expected")
-        return nil
-    }
-    record.dataLine.hasBeenRead = true
-    
-    guard record.childNodes.count > 0
-            && record.childNodes[0].dataLine.tag == "TIME" else {
-        errors.writeln(record.dataLine.lineNum,
-            "tag TIME not found (in child record) when expected")
-        return nil
-    }
-    record.childNodes[0].dataLine.hasBeenRead = true
-
-    return DateTime(date: record.dataLine.value,
-        time: record.childNodes[0].dataLine.value)
-}
-
-
-// Extract bibliographic information -- not part of the records about people
-// and families. Not all this stuff is needed by people mainly interested in
-// genealogy.
-
-func buildHeader(_ record: RecordNode) -> Header {
-    var header = Header()
-
-    // let dataLine = record.dataLine // unused?
-    for node in record.childNodes {
-        let line = node.dataLine
-        let lineNum = line.lineNum // used frequently in error messages
-
-        if line.tag == "DATE" {
-            header.when = getDateTime(record: node, errorsFile: errorsfile)
-        }
-        
-        else if line.tag == "SOUR" {
-            let values = getFromChildrenByTags(parent: node,
-                tags: ["NAME", "VERS"], errorsFile: errorsfile)
-            if values[0] != nil {
-                checkedAssignString(toBeSet: &header.software,
-                    value: values[0]!, identifier: "software",
-                    lineNum: lineNum, errorsFile: errorsfile)
-            }
-            if values[1] != nil {
-                checkedAssignString(toBeSet: &header.softwareVersion,
-                    value: values[1]!, identifier: "software version",
-                    lineNum: lineNum, errorsFile: errorsfile)
-            }
-        }
-
-        else if line.tag == "GEDC" {
-            let values = getFromChildrenByTags(parent: node,
-                tags: ["VERS"], errorsFile: errorsfile)
-            if values[0] != nil {
-                checkedAssignString(toBeSet: &header.gedcomVersion,
-                    value: values[0]!, identifier: "GEDCOM version",
-                    lineNum: lineNum, errorsFile: errorsfile)
-            }
-        }
-    }
-    
-    return header
-}
-
-
-// Return a Person constructed from the record and the personID.
-//
-// The personID is available from the record itself, but it is extracted and
-// checked before this function is called.
-
-func buildPerson(_ record: RecordNode, personID: PersonID) -> Person {
-    var who = Person(personID)
-    
-    // let dataLine = record.dataLine // unused?
-    for node in record.childNodes {
-        let line = node.dataLine
-        let lineNum = line.lineNum // used frequently in error messages
-
-        if line.tag == "CHAN" {
-            if line.value != "" {
-                errorsfile.writeln(lineNum, "non-empty value in CHAN line")
-            }
-
-            // Read the child DATE node and grandchild TIME node.
-            if node.childNodes.count < 1 {
-                errorsfile.writeln(node.dataLine.lineNum,
-                    "CHAN node doesn't start with a DATE chid")
-            }
-            else {
-                who.changeDate = getDateTime(record: node.childNodes[0],
-                    errorsFile: errorsfile)
-            }
-            node.dataLine.hasBeenRead = true
-        }
-        
-        else if line.tag == "NAME" {
-            // var name = Name(baseName: line.value)
-            let trimmedName = line.value.trimmingCharacters(in: .whitespaces)
-            var name = Name(baseName: trimmedName)
-            if line.value == "" {
-                errorsfile.writeln(lineNum, "empty name in NAME record")
-            }
-
-            // Set the dangling extras for a name. This is fairly ugly.
-            let values = getFromChildrenByTags(parent: node,
-                tags: ["TYPE", "GIVN", "SURN", "NPFX", "NICK", "SPFX", "NSFX"],
-                errorsFile: errorsfile)
-            (name.type, name.givenName, name.surName, name.prefix, name.nickName,
-                name.surnamePrefix, name.suffix)
-                =
-                (values[0], values[1], values[2], values[3], values[4],
-                    values[5], values[6])
-
-            switch name.type {
-            case nil:
-                // the usual case, I think
-                break;
-
-            case "aka":
-                name.kind = .aka
-            case "birth":
-                name.kind = .birth
-            case "immigrant":
-                name.kind = .immigrant
-            case "maiden":
-                name.kind = .maiden
-            case "married":
-                name.kind = .married
-                
-            default:
-                break;
-            }
-           
-            who.names.append(name)
-            node.dataLine.hasBeenRead = true
-        }
-        
-        // The ALIA record is no longer defined in GEDCOM.
-        // else if line.tag == "ALIA" {
-        
-        else if line.tag == "SEX" {
-            checkedAssignString(toBeSet: &who.sex, value: line.value,
-                identifier: "sex", lineNum: lineNum, errorsFile: errorsfile)
-            node.dataLine.hasBeenRead = true
-        }
-        
-        // Needed only if we get nobility into the family.
-        else if line.tag == "TITL" {
-            checkedAssignString(toBeSet: &who.title, value: line.value,
-                identifier: "title", lineNum: lineNum, errorsFile: errorsfile)
-            node.dataLine.hasBeenRead = true
-        }
-        
-        else if ["BIRT", "DEAT", "BURI", "EMIG"].contains(line.tag) {
-            // events that need a date and a place
-            if line.value != "" {
-                errorsfile.writeln(lineNum,
-                    "expected empty value in line: \(line)")
-            }
-            var overwriteError = false
-            switch line.tag {
-            case "BIRT":
-                overwriteError = who.birth != nil
-            case "DEAT":
-                overwriteError = who.death != nil
-            case "BURI":
-                overwriteError = who.burial != nil
-            case "EMIG":
-                overwriteError = who.emigration != nil
-            default:
-                errorsfile.writeln(lineNum,
-                    "supposedly impossible tag \(line.tag) in line: \(line)")
-            }
-            if overwriteError {
-                // I'd like to include the value that would be overwritten, but
-                // that would require excessive gymnastics.
-                errorsfile.writeln(lineNum,
-                    "line attempts to overwrite value: \(line)")
-            } else {
-                let values = getFromChildrenByTags(parent: node,
-                    tags: ["DATE", "PLAC"], errorsFile: errorsfile)
-                var newEvent: Event? = nil
-                if values[0] != nil || values[1] != nil {
-                    newEvent = Event(date: values[0], place: values[1])
-                }
-                switch line.tag {
-                case "BIRT":
-                    who.birth = newEvent
-                case "DEAT":
-                    who.death = newEvent
-                case "BURI":
-                    who.burial = newEvent
-                case "EMIG":
-                    who.emigration = newEvent
-                default:
-                    break
-                }
-            }
-            node.dataLine.hasBeenRead = true
-        }
-                
-        else if line.tag == "NOTE" {
-            // if let (valueKind, valueIndex) = atStrIntAt(line.value) {
-            if let (valueKind, _) = atStrIntAt(line.value) {
-                if valueKind != "NI" && valueKind != "N" {
-                    errorsfile.writeln(lineNum, "bad note ID: \(line.value)")
-                // } else if who.noteExpected != nil {
-                //     errorsfile.writeln(lineNum, "second note expected for same person")
-                } else {
-                    // who.noteExpected = valueIndex
-                    // noteClaims[line.value] = who.personID
-                    who.noteIDs.append(line.value)
-                }
-            } else {
-                errorsfile.writeln(lineNum, "bad note ID: \(line.value)")
-            }
-            node.dataLine.hasBeenRead = true
-        }
-
-        else if line.tag == "FAMS" || line.tag == "FAMC" {
-            if let (valueKind, valueIndex) = atStrIntAt(line.value) {
-                if valueKind != "F" {
-                    errorsfile.writeln(lineNum, "bad family ID: \(line.value)")
-                } else {
-                    if line.tag == "FAMS" {
-                        if who.familyS == nil {
-                            who.familyS = [FamilyID]()
-                        }
-                        who.familyS!.append(valueIndex)
-                    } else {
-                        assert(line.tag == "FAMC")
-                        if who.familyC == nil {
-                            who.familyC = [FamilyID]()
-                        }
-                        who.familyC!.append(valueIndex)
-
-                        // In GEDCOM 5.5.5, the pedigree (tag "PEDI") is part
-                        // of the child's FAMC record, and Gramps does this.
-                        // Gramps also allows alternatives to PEDI: _MREL and
-                        // _FREL for the relationships to the parents
-                        // separately.
-                        //
-                        // This is an odd place to put this information, which
-                        // is really part of the family relationship, not the
-                        // child alone. But here we are.
-                        let values = getFromChildrenByTags(parent: node,
-                            tags: ["PEDI", "_FREL", "_MREL"],
-                            errorsFile: errorsfile)
-                        // There can be a PEDI for both relationships, or an
-                        // _FREL and/or an _MREL, but not both a PEDI and some
-                        // of the other two.
-                        if values[0] != nil {
-                            if values[1] != nil || values[2] != nil {
-                                errorsfile.writeln(lineNum,
-                                    "too much child-parent relationship information")
-                            }
-                            who.pedigrees[valueIndex] = (values[0], values[0])
-                        }
-                        else {
-                            who.pedigrees[valueIndex] = (values[1], values[2])
-                            // printerr("pedigrees: \(values[1] ?? "nil") \(values[2] ?? "nil")")
-                        }
-                    }
-                }
-            } else {
-                errorsfile.writeln(lineNum, "bad family ID: \(line.value)")
-            }
-            node.dataLine.hasBeenRead = true
-        }
-                            
-        else {
-            errorsfile.writeln(lineNum, "line ignored: \(node.dataLine.asRead)")
-        }
-    }
-    // end of the loop on subrecords
-    
-    return who
-}
-
-
-// Return a Family constructed from the record and the familyID.
-//
-// The familyID is available from the record itself, but it is extracted and
-// checked before this function is called.
-
-func buildFamily(_ record: RecordNode, familyID: FamilyID) -> Family {
-    var family = Family(familyID)
-
-    // let dataLine = record.dataLine // unused?
-    for node in record.childNodes {
-        let line = node.dataLine
-        let lineNum = line.lineNum // used frequently in error messages
-
-        if line.tag == "CHAN" {
-            if line.value != "" {
-                errorsfile.writeln(lineNum, "non-empty value in CHAN line")
-            }
-
-            // Read the child DATE node and grandchild TIME node.
-            if node.childNodes.count < 1 {
-                errorsfile.writeln(node.dataLine.lineNum,
-                    "CHAN node doesn't start with a DATE chid")
-            }
-            else {
-                family.changeDate = getDateTime(record: node.childNodes[0],
-                    errorsFile: errorsfile)
-            }
-            node.dataLine.hasBeenRead = true
-        }
-        
-        else if line.tag == "HUSB" || line.tag == "WIFE" {
-            if let (valueKind, valueIndex) = atStrIntAt(line.value) {
-                if valueKind != "I" {
-                    errorsfile.writeln(lineNum,
-                        "bad husband/wife personID: \(line.value)")
-                } else {
-                    if line.tag == "HUSB" {
-                        if family.husband != nil {
-                            errorsfile.writeln(lineNum,
-                                "second personID for husband")
-                        }
-                        family.husband = valueIndex
-                    } else {
-                        if family.wife != nil {
-                            errorsfile.writeln(lineNum,
-                                "second personID for wife")
-                        }
-                        family.wife = valueIndex
-                    }
-                }
-            } else {
-                errorsfile.writeln(lineNum,
-                    "bad husband/wife personID: \(line.value)")
-            }
-            node.dataLine.hasBeenRead = true
-        }
-
-        else if line.tag == "MARR" {
-            // A marriage has an Event attribute, but it also has others,
-            // so it is not necessarily an error to see a "MARR" tag when a
-            // the family.marriage field is not nil.
-            //
-            // But the MARR tag seems to introduce an event with a DATE and
-            // PLAC.
-            
-            if line.value != "" {
-                errorsfile.writeln(lineNum, "MARR line with non-empty value")
-            }
-            let values = getFromChildrenByTags(parent: node,
-                tags: ["DATE", "PLAC"], errorsFile: errorsfile)
-            var newEvent: Event? = nil
-            if values[0] != nil || values[1] != nil {
-                newEvent = Event(date: values[0], place: values[1])
-            }
-
-            if newEvent != nil {
-                if family.marriage != nil {
-                    errorsfile.writeln(lineNum,
-                        "attempt to overwrite existing marriage event")
-                } else {
-                    family.marriage = newEvent
-                }
-            }
-
-            node.dataLine.hasBeenRead = true
-        }
-
-        else if line.tag == "DIV" {
-            // A divorce with line.value "Y" is simply noted to have occurred.
-            // If there is no line.value, there may be a date or place. We have
-            // few examples, so may have to add other attributes later.
-            
-            if line.value != "" && line.value != "Y" {
-                errorsfile.writeln(lineNum, "DIVorce line with unknown value")
-            }
-            
-            family.endStatus = "Divorce"
-            
-            if line.value != "Y" {
-                // If "Y", all we know is that there was a divorce.
-            }
-            let values = getFromChildrenByTags(parent: node,
-                tags: ["DATE", "PLAC"], errorsFile: errorsfile)
-            var newEvent: Event? = nil
-            if values[0] != nil || values[1] != nil {
-                newEvent = Event(date: values[0], place: values[1])
-            }
-
-            if newEvent != nil {
-                if family.endEvent != nil {
-                    errorsfile.writeln(lineNum,
-                        "attempt to overwrite existing end event of marriage")
-                } else {
-                    family.endEvent = newEvent
-                }
-            }
-
-            node.dataLine.hasBeenRead = true
-        }
-
-        else if line.tag == "EVEN" {
-            // It's an "event". It is an attribute of the family, not the
-            // marriage (if there is a marriage), even if it is, for example, a
-            // divorce. The marriage is an event, and the divorce (or death) is
-            // also an event -- one that ends the family, not the marriage.
-            //
-            // I think that's what the GEDCOM standard is saying, and it seems
-            // reasonable.
-            //
-            // Gramps uses events of type _MSTAT and _MEND to explain how a
-            // family starts and ends. The original .GED files that RLC produced
-            // (with Family Tree Maker) used _FA1 records to state "marriage
-            // facts", but there were only a couple -- one about the end of a
-            // marriage, or rather family (by death), and one about the
-            // location of a marriage. I'm moving that information (by means of
-            // operations in Gramps, not by editing the .ged files) to MARR and
-            // _MEND records, and any references you see in this program to
-            // "_FA1" are the skeletons of dinosaurs.
-            //
-            // Within the GEDCOM rules, I'm not sure it's possible to do better
-            // than the _MSTAT and _MEND records. On the other hand, other
-            // (non-Gramps) genealogical programs may handle these things
-            // differently. That's a possible problem ... for later.
-            
-            // First child node should be tagged "TYPE", with value "_MSTAT" or
-            // "_MEND". Other child nodes may be DATE or PLAC.
-            if node.childNodes.count < 1 {
-                errorsfile.writeln(lineNum,
-                    "EVEN record does not have a TYPE record")
-                    // Don't even label the node as read
-                    continue
-            }
-            
-            let typeLine = node.childNodes[0].dataLine
-            switch typeLine.value {
-                
-            case "Death":
-                // At least one spouse died. There may be a date and a place,
-                // giving a family.endEvent, but we ignore the line.value,
-                // because it probably says "there was a death".
-                family.endStatus = "Death"
-                let values = getFromChildrenByTags(parent: node,
-                    tags: ["DATE", "PLAC"], errorsFile: errorsfile)
-                if values[0] != nil || values[1] != nil {
-                    if family.endEvent != nil {
-                        errorsfile.writeln(lineNum,
-                            "attempt to overwrite existing end-of-marriage event")
-                    } else {
-                        family.endEvent = Event(date: values[0], place: values[1])
-                    }
-                }
-                node.childNodes[0].dataLine.hasBeenRead = true
-            
-            // case "_FA1":
-                // Family Tree Maker used this tag to record "facts" in the old
-                // .GED files, in just two places, both related to information
-                // about marriages. Gramps copied the tag in those two places.
-                //
-                // Both instances of _FA1 have been replaced by more appropriate
-                // directly marriage-related tags. I hope _FA1 never reappears,
-                // but if it does, how it is handled will depend on what
-                // information it holds. Meanwhile, it's gone!
-                
-            case "_MSTAT":
-                // We hope not to be using this case, but here it is.
-                
-                // There are no further child nodes. We simply store line.value
-                // as beginStatus.
-                family.beginStatus = line.value
-                node.childNodes[0].dataLine.hasBeenRead = true
-                
-            case "_MEND":
-                // We hope not to be using this case, but here it is.
-                
-                // We store line.value as endStatus. There may be DATE and PLAC
-                // values that locate the family-ending event.
-                family.endStatus = line.value
-                let values = getFromChildrenByTags(parent: node,
-                    tags: ["DATE", "PLAC"], errorsFile: errorsfile)
-                if values[0] != nil || values[1] != nil {
-                    if family.endEvent != nil {
-                        errorsfile.writeln(lineNum,
-                            "attempt to overwrite existing end-of-marriage event")
-                    } else {
-                        family.endEvent = Event(date: values[0], place: values[1])
-                    }
-                }
-                node.childNodes[0].dataLine.hasBeenRead = true
-            
-            default:
-                errorsfile.writeln(lineNum, "bad family event \(typeLine.value)")
-                // Don't label any nodes as read.
-                continue
-            }
-            
-            node.dataLine.hasBeenRead = true
-        }
-
-        else if line.tag == "CHIL" {
-            if let (valueKind, valueIndex)
-                    = atStrIntAt(line.value) {
-                if valueKind != "I" {
-                    errorsfile.writeln(lineNum,
-                        "bad child personID: \(line.value)")
-                } else {
-                    let child = Child(valueIndex)
-                    
-                    // In GEDCOM 5.5.5, only the child's personID is given.
-                    // We're going to add more information later -- such as the
-                    // child's relation to its father and/or mother -- but we
-                    // can't get it while reading the family record.
-                    // let linesUsed = buildChild(childToBuild: &child,
-                    //     firstLine: record.lines[i + 1],
-                    //     secondLine: record.lines[i + 2],
-                    //     baseLineNumber: lineNum,
-                    //     baseLevel: line.level,
-                    //     errorsFile: &errorsfile
-                    //     )
-                    if family.children.first(where: {$0.personID == child.personID})
-                            != nil {
-                        errorsfile.writeln(lineNum, "duplicate child personID")
-                    } else {
-                        family.children.append(child)
-                    }
-                }
-            } else {
-                errorsfile.writeln(lineNum, "bad child personID: \(line.value)")
-            }
-            node.dataLine.hasBeenRead = true // even if we couldn't use it
-        }
-             
-        else {
-            errorsfile.writeln(lineNum, "line ignored: \(node.dataLine.asRead)")
-        }
-    }
-    // end of the loop on subrecords
-    
-    return family
-}
-
-
-// Return a note -- that is, an array of Strings, each String a paragraph --
-// constructed from the record. The pointer in the first line of the record
-// is not used here; the caller should extract it to decide where to put the
-// note.
-
-func buildNote(_ record: RecordNode, noteID: NoteID) -> Note {
-    var note = Note(noteID)
-    
-    let dataLine = record.dataLine
-    
-    var noteLine = ""
-
-    // The note may start in the value segment of the first line.
-    if dataLine.value.starts(with: "NOTE ") {
-        let lineZero = dataLine.value
-        let range = lineZero.index(lineZero.startIndex, offsetBy: 5)
-            ..< lineZero.endIndex
-        noteLine += lineZero[range]
-    }
-
-    for node in record.childNodes {
-        let lineNum = node.dataLine.lineNum
-        if node.childNodes.count != 0 {
-            errorsfile.writeln(lineNum, "bad line level in NOTE")
-            continue
-        }
-
-        let line = node.dataLine.value
-        let tag = node.dataLine.tag
-
-        if tag == "CONT" {
-            note.contents.append(noteLine)
-            noteLine = ""
-        }
-        if tag == "CONC" || tag == "CONT" {
-            noteLine += line
-        } else {
-            errorsfile.writeln(lineNum, "bad line tag in NOTE")
-        }
-        
-        node.dataLine.hasBeenRead = true
-    }
-    
-    if noteLine != "" {
-        note.contents.append(noteLine)
-    }
-    
-    return note
 }
 
 

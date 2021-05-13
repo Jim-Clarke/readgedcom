@@ -24,8 +24,7 @@ class DataLine {
     var tag: String
     var value: String
     var hasBeenRead = false // that is, has been used in constructing the
-    // data structures used to produce the eventual output -- doesn't happen
-    // here
+    // data structures used to produce the eventual output -- see Ancestry.swift
 
     init(asRead: String, lineNum: Int, level: Int, tag: String, value: String) {
         self.asRead = asRead
@@ -40,7 +39,7 @@ class DataLine {
 
 class ParsedData {
     // in
-    let rawLines: [Substring]
+    // let rawLines: [Substring]
     
     // out
     fileprivate(set) var parsedLines = [DataLine]()
@@ -52,22 +51,22 @@ class ParsedData {
     var count: Int { parsedLines.count }
     
     init(rawLines: [Substring], errors: OutFile) {
-        self.rawLines = rawLines
+        // self.rawLines = rawLines
         self.errors = errors
         
-        parseData()
-        checkData()
+        parseData(input: rawLines)
+        checkData(input: rawLines)
     }
     
     
     // Convert the input, line by line, to DataLines and return the resulting
     // array, reporting problems to errors.
     
-    func parseData() {        
+    func parseData(input: [Substring]) {        
         // The loop is over the index, not simply the lines, because we need the
         // line number for error messages.
-        for i in 0 ..< rawLines.count {
-            var line = rawLines[i]
+        for i in 0 ..< input.count {
+            var line = input[i]
             
             // The line must not be empty.
             if line.isEmpty {
@@ -137,11 +136,11 @@ class ParsedData {
     // Trouble is indicated by output to errors, not by a return value or a
     // thrown Error.
     
-    func checkData() {
+    func checkData(input: [Substring]) {
         
         // Check that the number of lines hasn't changed.
         
-        if parsedLines.count != rawLines.count {
+        if parsedLines.count != input.count {
             errors.writeln("number of input lines surprisingly varies")
         }
         

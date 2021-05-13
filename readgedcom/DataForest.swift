@@ -40,22 +40,24 @@ class RecordNode {
 
 class DataForest {
     // in
-    let parsedLines: [DataLine]
+    // let parsedLines: [DataLine]
+    let data: ParsedData
     
     // out
     
     // The root nodes in this DataForest. Each non-root nodes is linked to its
     // parent by inclusion in the parent's childNodes property.
-    fileprivate(set) var rootNodes = [RecordNode]()
+    fileprivate(set) var roots = [RecordNode]()
     
     // error reporting
     let errors: OutFile
     
     // properties
-    var rootCount: Int { rootNodes.count }
+    // var rootCount: Int { roots.count }
     
     init(data: ParsedData, errors: OutFile) {
-        self.parsedLines = data.parsedLines
+        // self.parsedLines = data.parsedLines
+        self.data = data
         self.errors = errors
         
         buildForest()
@@ -69,15 +71,15 @@ class DataForest {
 
     func buildForest() {
         var lineNum = 0
-        while lineNum < parsedLines.count {
+        while lineNum < data.parsedLines.count {
             var newNode: RecordNode
             (newNode, lineNum) = makeNode(lineNum)
-            rootNodes.append(newNode)
+            roots.append(newNode)
         }
     }
 
 
-    // Construct a RecordNode from the data in parsedLines[lineNum], and also
+    // Construct a RecordNode from the data in line number lineNum, and also
     // construct all its child RecordNodes, and link them to the new RecordNode
     // as roots of its subtrees..
     //
@@ -85,11 +87,12 @@ class DataForest {
     // data line to be stored in a RecordNode.
 
     func makeNode(_ lineNum: Int) -> (RecordNode, Int) {
-        let node = RecordNode(dataLine: parsedLines[lineNum])
+        let node = RecordNode(dataLine: data.parsedLines[lineNum])
     
         var newLineNum = lineNum + 1
-        while newLineNum < parsedLines.count
-                && parsedLines[newLineNum].level == node.dataLine.level + 1 {
+        while newLineNum < data.parsedLines.count
+                && data.parsedLines[newLineNum].level == node.dataLine.level + 1
+        {
             var newNode: RecordNode
             (newNode, newLineNum) = makeNode(newLineNum)
             node.childNodes.append(newNode)
@@ -111,7 +114,7 @@ class DataForest {
         // special in GEDCOM.
     
         // header
-        let headerLine = rootNodes[0].dataLine
+        let headerLine = roots[0].dataLine
         let headerLineOK = headerLine.level == 0
             && headerLine.tag == "HEAD"
             && headerLine.value == ""
@@ -120,7 +123,7 @@ class DataForest {
         }
     
         // submitter
-        let submitterLine = rootNodes[1].dataLine
+        let submitterLine = roots[1].dataLine
         let submitterLineOK = submitterLine.level == 0
             && submitterLine.tag == "@SUBM@"
             && submitterLine.value == "SUBM"
@@ -129,7 +132,7 @@ class DataForest {
         }
     
         // trailer
-        let trailerNode = rootNodes[rootNodes.count - 1]
+        let trailerNode = roots[roots.count - 1]
         let trailer = trailerNode.dataLine
         let trailerOK = trailer.level == 0
             && trailer.tag == "TRLR"
