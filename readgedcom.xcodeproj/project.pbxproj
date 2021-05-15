@@ -11,6 +11,7 @@
 		4383F52A2641DB6600F221C8 /* ParsedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4383F5292641DB6600F221C8 /* ParsedData.swift */; };
 		4383F52C264324A300F221C8 /* DataForest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4383F52B264324A300F221C8 /* DataForest.swift */; };
 		4383F52E2644866A00F221C8 /* Ancestry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4383F52D2644866A00F221C8 /* Ancestry.swift */; };
+		4383F530264D80BA00F221C8 /* Reporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4383F52F264D80BA00F221C8 /* Reporter.swift */; };
 		43F37AA92639FD0B00C0AFFF /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F37AA82639FD0B00C0AFFF /* main.swift */; };
 		43F37AB22639FD7C00C0AFFF /* TextFileUtilities in Frameworks */ = {isa = PBXBuildFile; productRef = 43F37AB12639FD7C00C0AFFF /* TextFileUtilities */; };
 /* End PBXBuildFile section */
@@ -31,6 +32,7 @@
 		4383F5292641DB6600F221C8 /* ParsedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedData.swift; sourceTree = "<group>"; };
 		4383F52B264324A300F221C8 /* DataForest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataForest.swift; sourceTree = "<group>"; };
 		4383F52D2644866A00F221C8 /* Ancestry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ancestry.swift; sourceTree = "<group>"; };
+		4383F52F264D80BA00F221C8 /* Reporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Reporter.swift; sourceTree = "<group>"; };
 		43F37AA52639FD0B00C0AFFF /* readgedcom */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "compiled.mach-o.executable"; path = readgedcom; sourceTree = BUILT_PRODUCTS_DIR; };
 		43F37AA82639FD0B00C0AFFF /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = main.swift; path = readgedcom/main.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
@@ -71,6 +73,7 @@
 				4383F52B264324A300F221C8 /* DataForest.swift */,
 				4383F5292641DB6600F221C8 /* ParsedData.swift */,
 				4383F52D2644866A00F221C8 /* Ancestry.swift */,
+				4383F52F264D80BA00F221C8 /* Reporter.swift */,
 			);
 			path = readgedcom;
 			sourceTree = "<group>";
@@ -141,6 +144,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4383F52C264324A300F221C8 /* DataForest.swift in Sources */,
+				4383F530264D80BA00F221C8 /* Reporter.swift in Sources */,
 				43F37AA92639FD0B00C0AFFF /* main.swift in Sources */,
 				4383F52E2644866A00F221C8 /* Ancestry.swift in Sources */,
 				4383F52A2641DB6600F221C8 /* ParsedData.swift in Sources */,

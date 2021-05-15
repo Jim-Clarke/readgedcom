@@ -5,7 +5,7 @@
 //  Created by Jim Clarke on 2021-05-06.
 //
 
-// Extract the people, notes and families from the record tree.
+// The people, notes and families extracted from a DataForest.
 
 
 import Foundation
@@ -73,8 +73,12 @@ struct Header {
     var when: DateTime?
     var software: String?
     var softwareVersion: String?
+    var embeddedFileName: String? // the file name in the GEDCOM file header
+    var otherFileName: String? // for later use
+        // -- maybe the file name from the command line?
     var gedcomVersion: String?
     var noteIDs = [NoteID]() // zero or more notes that are not about any person
+    var notes: String? // to be set by a Reporter based on noteIDs
 }
 
 struct Submitter {
@@ -573,11 +577,23 @@ class Ancestry {
                 }
             }
             
+            else if line.tag == "FILE" {
+                if line.value == "" {
+                    errors.writeln(lineNum, "empty file name in header")
+                }
+                checkedAssignString(toBeSet: &header.embeddedFileName,
+                                    value: line.value,
+                                    identifier: "file name in header",
+                                    lineNum: lineNum)
+            }
+
             // There are lines in the header we don't feel obliged to handle.
-            // Consequently, this check doesn't happen:
+            // Consequently, we don't set child.dataLine.hasBeenRead, and
+            // this check doesn't happen:
             // else {
             // errors.writeln(lineNum, "line ignored: \(child.dataLine.asRead)")
             // }
+
  
         } // end of the loop on child records
 

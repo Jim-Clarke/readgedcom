@@ -5,8 +5,8 @@
 //  Created by Jim Clarke on 2021-05-04.
 //
 
-// An object containing the lines of the input (simple Substrings) analysed
-// into GEDCOM "records" (DataLines).
+// A container for the lines of the input (simple Substrings) analysed into
+// GEDCOM "records" (DataLines).
 
 
 import Foundation

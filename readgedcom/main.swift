@@ -142,4 +142,19 @@ errorsfile.writeln("Persons: \(ancestry.people.count)")
 errorsfile.writeln("Families: \(ancestry.families.count)")
 errorsfile.writeln("Notes: \(ancestry.notes.count)")
 
+// Produce the report.
+let reporter = Reporter(ancestry, infileName, showPersonIDs, sortReport,
+    reportFile: reportfile, errors: errorsfile)
+reporter.report()
+
+// This isn't going to work like this!
+if !errorsfile.hasBeenUsed {
+    printerr("No errors encountered")
+}
+else {
+    printerr("Some errors encountered ...")
+    printerr("")
+}
+
+
 try OutFile.finalizeAll()
