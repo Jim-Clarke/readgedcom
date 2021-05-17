@@ -636,7 +636,8 @@ class Ancestry {
         
             else if line.tag == "NAME" {
                 // var name = Name(baseName: line.value)
-                let trimmedName = line.value.trimmingCharacters(in: .whitespaces)
+                // let trimmedName = line.value.trimmingCharacters(in: .whitespaces)
+                let trimmedName = trimWhitespace(line.value)
                 var name = Name(baseName: trimmedName)
                 // if line.value == "" {
                 if trimmedName == "" {
