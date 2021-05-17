@@ -106,13 +106,16 @@ sortedreportfile = OutFile(sortedOutFile)
 //errorsfile = StreamedOutFile("errors", stream: stderrStream)
 errorsfile = OutFile(errFile)
 
+// Prepare to report on errors and summarize results.
+var summary = ""
+
 // Start activity summary
 let now = Date()
 let formatter = DateFormatter()
 formatter.timeZone = TimeZone.current
 formatter.dateFormat = "yyy-MM-dd HH:mm:ss"
-errorsfile.writeln("Running program at \(formatter.string(from: now))")
-errorsfile.writeln("Input file: \(infileName)")
+summary += "Running program at \(formatter.string(from: now))\n"
+summary += "Input file: \(infileName)\n"
 
 
 // Read the input.
@@ -124,23 +127,22 @@ catch FileError.failedRead(let msg) {
     errorsfile.writeln(msg)
     exit(1)
 }
-errorsfile.writeln("Lines read: \(rawData.count)")
+summary += "Lines read: \(rawData.count)\n"
 
 // Break the input lines into parts, as DataLine values.
 let data = ParsedData(rawLines: rawData, errors: errorsfile)
-errorsfile.writeln("Lines parsed: \(data.count)")
-
+summary += "Lines parsed: \(data.count)\n"
 
 // Build the forest of data.
 let dataForest = DataForest(data: data, errors: errorsfile)
-errorsfile.writeln("Records built: \(dataForest.roots.count)")
-
+summary += "Records built: \(dataForest.roots.count)\n"
 
 // Build the actual family "tree".
 let ancestry = Ancestry(dataForest, errors: errorsfile)
-errorsfile.writeln("Persons: \(ancestry.people.count)")
-errorsfile.writeln("Families: \(ancestry.families.count)")
-errorsfile.writeln("Notes: \(ancestry.notes.count)")
+summary += "Lines ignored: \(ancestry.unusedLineCount)\n"
+summary += "Persons: \(ancestry.people.count)\n"
+summary += "Families: \(ancestry.families.count)\n"
+summary += "Notes: \(ancestry.notes.count)\n"
 
 // Produce the report.
 let reporter = Reporter(ancestry, infileName, showPersonIDs, sortReport,
@@ -149,12 +151,13 @@ reporter.report()
 
 // This isn't going to work like this!
 if !errorsfile.hasBeenUsed {
-    printerr("No errors encountered")
+    errorsfile.writeln("No errors were reported during processing\n")
 }
 else {
-    printerr("Some errors encountered ...")
-    printerr("")
+    errorsfile.writeln("\nEnd of error reports\n")
 }
+errorsfile.writeln("Summary of results:\n")
+errorsfile.writeln(summary)
 
 
 try OutFile.finalizeAll()

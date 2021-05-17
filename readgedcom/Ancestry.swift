@@ -268,6 +268,7 @@ class Ancestry {
     
     // error reporting
     let errors: OutFile
+    var unusedLineCount = 0
 
     
     init(_ dataForest: DataForest, errors: OutFile) {
@@ -412,6 +413,9 @@ class Ancestry {
     } // end of buildAncestry
 
 
+    // Return the number of lines in the input that were unused in constructing
+    // this Ancestry -- apart from header, submitter and trailer lines.
+    
     func checkAncestry() {
         // Have we looked at all the information provided by the genealogist?
 
@@ -436,12 +440,10 @@ class Ancestry {
             return count
         }
 
-        var unusedLineCount = 0
+        unusedLineCount = 0
         for r in 2 ... dataForest.roots.count - 2 {
             unusedLineCount += reportUnusedRecords(root: dataForest.roots[r])
         }
-
-        errors.writeln("Lines ignored: \(unusedLineCount)")
     }
 
 

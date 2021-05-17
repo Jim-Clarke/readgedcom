@@ -33,7 +33,7 @@
 		4383F52B264324A300F221C8 /* DataForest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataForest.swift; sourceTree = "<group>"; };
 		4383F52D2644866A00F221C8 /* Ancestry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ancestry.swift; sourceTree = "<group>"; };
 		4383F52F264D80BA00F221C8 /* Reporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Reporter.swift; sourceTree = "<group>"; };
-		43F37AA52639FD0B00C0AFFF /* readgedcom */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "compiled.mach-o.executable"; path = readgedcom; sourceTree = BUILT_PRODUCTS_DIR; };
+		43F37AA52639FD0B00C0AFFF /* readgedcom */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = readgedcom; sourceTree = BUILT_PRODUCTS_DIR; };
 		43F37AA82639FD0B00C0AFFF /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = main.swift; path = readgedcom/main.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -109,7 +109,7 @@
 			isa = PBXProject;
 			attributes = {
 				LastSwiftUpdateCheck = 1240;
-				LastUpgradeCheck = 1240;
+				LastUpgradeCheck = 1250;
 				TargetAttributes = {
 					43F37AA42639FD0B00C0AFFF = {
 						CreatedOnToolsVersion = 12.4;
@@ -272,6 +272,7 @@
 		43F37AAD2639FD0B00C0AFFF /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -281,6 +282,7 @@
 		43F37AAE2639FD0B00C0AFFF /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
