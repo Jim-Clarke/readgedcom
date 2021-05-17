@@ -538,7 +538,6 @@ class Ancestry {
     func buildHeader(_ record: RecordNode) -> Header {
         var header = Header()
 
-        // let dataLine = record.dataLine // unused?
         for subtree in record.childNodes {
             let line = subtree.dataLine
             let lineNum = line.lineNum // used frequently in error messages
@@ -591,7 +590,7 @@ class Ancestry {
             // errors.writeln(lineNum, "line ignored: \(child.dataLine.asRead)")
 
  
-        } // end of the loop on child records
+        } // end of the loop on child treenodes
 
         return header
 
@@ -606,8 +605,7 @@ class Ancestry {
     func buildPerson(_ record: RecordNode, personID: PersonID) -> Person {
         var who = Person(personID)
     
-        // let dataLine = record.dataLine // unused?
-        for subtree in record.childNodes { 
+        for subtree in record.childNodes {
             let line = subtree.dataLine
             let lineNum = line.lineNum // used frequently in error messages
 
@@ -799,7 +797,7 @@ class Ancestry {
                 errors.writeln(lineNum, "line ignored: \(subtree.dataLine.asRead)")
             }
             
-        } // end of the loop on child records
+        } // end of the loop on child treenodes
     
         return who
 
@@ -814,7 +812,6 @@ class Ancestry {
     func buildFamily(_ record: RecordNode, familyID: FamilyID) -> Family {
         var family = Family(familyID)
 
-        // let dataLine = record.dataLine // unused?
         for subtree in record.childNodes {
             let line = subtree.dataLine
             let lineNum = line.lineNum // used frequently in error messages
@@ -1023,7 +1020,7 @@ class Ancestry {
                 errors.writeln(lineNum, "line ignored: \(subtree.dataLine.asRead)")
             }
             
-        } // end of the loop on child records
+        } // end of the loop on child treenodes
     
         return family
         
