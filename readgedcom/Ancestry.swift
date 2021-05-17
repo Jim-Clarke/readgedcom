@@ -539,22 +539,20 @@ class Ancestry {
         var header = Header()
 
         // let dataLine = record.dataLine // unused?
-        for child in record.childNodes {
-            // Let's remember it's a tree "child", not a genealogical child.
-            let line = child.dataLine
+        for subtree in record.childNodes {
+            let line = subtree.dataLine
             let lineNum = line.lineNum // used frequently in error messages
-
-            if line.tag == "DATE" {
-                header.when = getDateTime(record: child)
-            }
-    
-            else if line.tag == "SOUR" {
-                let values = getFromChildrenByTags(parent: child,
+            
+            switch line.tag {
+            case "DATE":
+                header.when = getDateTime(record: subtree)
+            case "SOUR":
+                let values = getFromChildrenByTags(parent: subtree,
                                                    tags: ["NAME", "VERS"]
                 )
                 if values[0] != nil {
                     checkedAssignString(toBeSet: &header.software,
-                                        value: values[0]!, 
+                                        value: values[0]!,
                                         identifier: "software",
                                         lineNum: lineNum
                     )
@@ -566,10 +564,8 @@ class Ancestry {
                                         lineNum: lineNum
                     )
                 }
-            }
-
-            else if line.tag == "GEDC" {
-                let values = getFromChildrenByTags(parent: child, tags: ["VERS"])
+            case "GEDC":
+                let values = getFromChildrenByTags(parent: subtree, tags: ["VERS"])
                 if values[0] != nil {
                     checkedAssignString(toBeSet: &header.gedcomVersion,
                                         value: values[0]!,
@@ -577,9 +573,7 @@ class Ancestry {
                                         lineNum: lineNum
                     )
                 }
-            }
-            
-            else if line.tag == "FILE" {
+            case "FILE":
                 if line.value == "" {
                     errors.writeln(lineNum, "empty file name in header")
                 }
@@ -587,14 +581,14 @@ class Ancestry {
                                     value: line.value,
                                     identifier: "file name in header",
                                     lineNum: lineNum)
+            default:
+                break
             }
 
             // There are lines in the header we don't feel obliged to handle.
             // Consequently, we don't set child.dataLine.hasBeenRead, and
-            // this check doesn't happen:
-            // else {
+            // the default case doesn't say:
             // errors.writeln(lineNum, "line ignored: \(child.dataLine.asRead)")
-            // }
 
  
         } // end of the loop on child records
@@ -613,28 +607,27 @@ class Ancestry {
         var who = Person(personID)
     
         // let dataLine = record.dataLine // unused?
-        for child in record.childNodes { 
-            // Let's remember it's a tree "child", not a genealogical child.
-            let line = child.dataLine
+        for subtree in record.childNodes { 
+            let line = subtree.dataLine
             let lineNum = line.lineNum // used frequently in error messages
 
-            if line.tag == "CHAN" {
+            switch line.tag {
+            case "CHAN":
                 if line.value != "" {
                     errors.writeln(lineNum, "non-empty value in CHAN line")
                 }
 
                 // Read the child DATE node and grandchild TIME node.
-                if child.childNodes.count < 1 {
-                    errors.writeln(child.dataLine.lineNum,
+                if subtree.childNodes.count < 1 {
+                    errors.writeln(subtree.dataLine.lineNum,
                         "CHAN node doesn't start with a DATE child")
                 }
                 else {
-                    who.changeDate = getDateTime(record: child.childNodes[0])
+                    who.changeDate = getDateTime(record: subtree.childNodes[0])
                 }
-                child.dataLine.hasBeenRead = true
-            }
+                subtree.dataLine.hasBeenRead = true
         
-            else if line.tag == "NAME" {
+            case "NAME":
                 // var name = Name(baseName: line.value)
                 // let trimmedName = line.value.trimmingCharacters(in: .whitespaces)
                 let trimmedName = trimWhitespace(line.value)
@@ -645,7 +638,7 @@ class Ancestry {
                 }
 
                 // Set the dangling extras for a name. This is fairly ugly.
-                let values = getFromChildrenByTags(parent: child,
+                let values = getFromChildrenByTags(parent: subtree,
                                                    tags:
                     ["TYPE", "GIVN", "SURN", "NPFX", "NICK", "SPFX", "NSFX"])
                 (name.type, name.givenName, name.surName, name.prefix, name.nickName,
@@ -675,26 +668,23 @@ class Ancestry {
                 }
            
                 who.names.append(name)
-                child.dataLine.hasBeenRead = true
-            }
+                subtree.dataLine.hasBeenRead = true
         
             // The ALIA record is no longer defined in GEDCOM.
             // else if line.tag == "ALIA" {
         
-            else if line.tag == "SEX" {
+            case "SEX":
                 checkedAssignString(toBeSet: &who.sex, value: line.value,
                     identifier: "sex", lineNum: lineNum)
-                child.dataLine.hasBeenRead = true
-            }
+                subtree.dataLine.hasBeenRead = true
         
-            // Needed only if we get nobility into the family.
-            else if line.tag == "TITL" {
+            case "TITL":
+                // Needed only if we get nobility into the family.
                 checkedAssignString(toBeSet: &who.title, value: line.value,
                     identifier: "title", lineNum: lineNum)
-                child.dataLine.hasBeenRead = true
-            }
+                subtree.dataLine.hasBeenRead = true
         
-            else if ["BIRT", "DEAT", "BURI", "EMIG"].contains(line.tag) {
+            case "BIRT", "DEAT", "BURI", "EMIG":
                 // events that need a date and a place
                 if line.value != "" {
                     errors.writeln(lineNum,
@@ -720,7 +710,7 @@ class Ancestry {
                     errors.writeln(lineNum,
                         "line attempts to overwrite value: \(line)")
                 } else {
-                    let values = getFromChildrenByTags(parent: child,
+                    let values = getFromChildrenByTags(parent: subtree,
                                                        tags: ["DATE", "PLAC"])
                     var newEvent: Event? = nil
                     if values[0] != nil || values[1] != nil {
@@ -739,10 +729,9 @@ class Ancestry {
                         break
                     }
                 }
-                child.dataLine.hasBeenRead = true
-            }
+                subtree.dataLine.hasBeenRead = true
                 
-            else if line.tag == "NOTE" {
+            case "NOTE":
                 // if let (valueKind, valueIndex) = atStrIntAt(line.value) {
                 if let (valueKind, _) = atStrIntAt(line.value) {
                     if valueKind != "NI" && valueKind != "N" {
@@ -755,10 +744,9 @@ class Ancestry {
                 } else {
                     errors.writeln(lineNum, "bad note ID: \(line.value)")
                 }
-                child.dataLine.hasBeenRead = true
-            }
+                subtree.dataLine.hasBeenRead = true
 
-            else if line.tag == "FAMS" || line.tag == "FAMC" {
+            case "FAMS", "FAMC":
                 if let (valueKind, valueIndex) = atStrIntAt(line.value) {
                     if valueKind != "F" {
                         errors.writeln(lineNum, "bad family ID: \(line.value)")
@@ -784,7 +772,7 @@ class Ancestry {
                             // This is an odd place to put this information,
                             // which is really part of the family relationship,
                             // not the child alone. But here we are.
-                            let values = getFromChildrenByTags(parent: child,
+                            let values = getFromChildrenByTags(parent: subtree,
                                 tags: ["PEDI", "_FREL", "_MREL"])
                             // There can be a PEDI for both relationships, or an
                             // _FREL and/or an _MREL, but not both a PEDI and
@@ -805,11 +793,10 @@ class Ancestry {
                 } else {
                     errors.writeln(lineNum, "bad family ID: \(line.value)")
                 }
-                child.dataLine.hasBeenRead = true
-            }
+                subtree.dataLine.hasBeenRead = true
                             
-            else {
-                errors.writeln(lineNum, "line ignored: \(child.dataLine.asRead)")
+            default:
+                errors.writeln(lineNum, "line ignored: \(subtree.dataLine.asRead)")
             }
             
         } // end of the loop on child records
@@ -828,154 +815,111 @@ class Ancestry {
         var family = Family(familyID)
 
         // let dataLine = record.dataLine // unused?
-        for child in record.childNodes {
-            // Let's remember it's a tree "child", not a genealogical child.
-            let line = child.dataLine
+        for subtree in record.childNodes {
+            let line = subtree.dataLine
             let lineNum = line.lineNum // used frequently in error messages
-
-            if line.tag == "CHAN" {
+            
+            switch line.tag {
+            case "CHAN":
                 if line.value != "" {
                     errors.writeln(lineNum, "non-empty value in CHAN line")
                 }
-
+                
                 // Read the child DATE node and grandchild TIME node.
-                if child.childNodes.count < 1 {
-                    errors.writeln(child.dataLine.lineNum,
-                        "CHAN node doesn't start with a DATE child")
+                if subtree.childNodes.count < 1 {
+                    errors.writeln(subtree.dataLine.lineNum,
+                                   "CHAN node doesn't start with a DATE child")
                 }
                 else {
-                    family.changeDate = getDateTime(record: child.childNodes[0])
+                    family.changeDate = getDateTime(record: subtree.childNodes[0])
                 }
-                child.dataLine.hasBeenRead = true
-            }
-        
-            else if line.tag == "HUSB" || line.tag == "WIFE" {
+                subtree.dataLine.hasBeenRead = true
+ 
+            case "HUSB", "WIFE":
                 if let (valueKind, valueIndex) = atStrIntAt(line.value) {
                     if valueKind != "I" {
                         errors.writeln(lineNum,
-                            "bad husband/wife personID: \(line.value)")
+                                       "bad husband/wife personID: \(line.value)")
                     } else {
                         if line.tag == "HUSB" {
                             if family.husband != nil {
                                 errors.writeln(lineNum,
-                                    "second personID for husband")
+                                               "second personID for husband")
                             }
                             family.husband = valueIndex
                         } else {
                             if family.wife != nil {
                                 errors.writeln(lineNum,
-                                    "second personID for wife")
+                                               "second personID for wife")
                             }
                             family.wife = valueIndex
                         }
                     }
                 } else {
                     errors.writeln(lineNum,
-                        "bad husband/wife personID: \(line.value)")
+                                   "bad husband/wife personID: \(line.value)")
                 }
-                child.dataLine.hasBeenRead = true
-            }
-
-            else if line.tag == "MARR" {
-                // Here, family.marriage is an Event, but for GEDCOM, the "MARR"
-                // record "is not only used to record marriages, but for
-                // recording every relationship type between two people".
-                // However, this program was written to decipher files that used
-                // MARR only to record marriage events.
-                //
-                // Later users, beware -- or at least, be aware.
-            
+                subtree.dataLine.hasBeenRead = true
+  
+            case "MARR":
                 if line.value != "" {
                     errors.writeln(lineNum, "MARR line with non-empty value")
                 }
-                let values = getFromChildrenByTags(parent: child,
+                let values = getFromChildrenByTags(parent: subtree,
                                                    tags: ["DATE", "PLAC"])
                 var newEvent: Event? = nil
                 if values[0] != nil || values[1] != nil {
                     newEvent = Event(date: values[0], place: values[1])
                 }
-
+                
                 if newEvent != nil {
                     if family.marriage != nil {
                         errors.writeln(lineNum,
-                            "attempt to overwrite existing marriage event")
+                                       "attempt to overwrite existing marriage event")
                     } else {
                         family.marriage = newEvent
                     }
                 }
-
-                child.dataLine.hasBeenRead = true
-            }
-
-            else if line.tag == "DIV" {
-                // A divorce with line.value "Y" is simply noted to have
-                // occurred. If there is no line.value, there may be a date or
-                // place. We have few examples, so may have to add other
-                // attributes later.
-            
+                
+                subtree.dataLine.hasBeenRead = true
+ 
+            case "DIV":
                 if line.value != "" && line.value != "Y" {
                     errors.writeln(lineNum, "DIVorce line with unknown value")
                 }
-            
+                
                 family.endStatus = "Divorce"
-            
+                
                 if line.value != "Y" {
                     // If "Y", all we know is that there was a divorce.
                 }
-                let values = getFromChildrenByTags(parent: child,
-                    tags: ["DATE", "PLAC"])
+                let values = getFromChildrenByTags(parent: subtree,
+                                                   tags: ["DATE", "PLAC"])
                 var newEvent: Event? = nil
                 if values[0] != nil || values[1] != nil {
                     newEvent = Event(date: values[0], place: values[1])
                 }
-
+                
                 if newEvent != nil {
                     if family.endEvent != nil {
                         errors.writeln(lineNum,
-                          "attempt to overwrite existing end event of marriage")
+                                       "attempt to overwrite existing end event of marriage")
                     } else {
                         family.endEvent = newEvent
                     }
                 }
-
-                child.dataLine.hasBeenRead = true
-            }
-
-            else if line.tag == "EVEN" {
-                // It's an "event". It is an attribute of the family, not the
-                // marriage (if there is a marriage), even if it is, for
-                // example, a divorce. The marriage is an event, and the
-                // divorce (or death) is also an event -- one that ends the
-                // family, not the marriage.
-                //
-                // I think that's what the GEDCOM standard is saying, and it
-                // seems reasonable.
-                //
-                // Gramps uses events of type _MSTAT and _MEND to explain how a
-                // family starts and ends. The original .GED files (produced
-                // with Family Tree Maker) used _FA1 records to state "marriage
-                // facts", but there were only a couple -- one about the end of
-                // a marriage, or rather family (by death), and one about the
-                // location of a marriage. I'm moving that information (by
-                // means of operations in Gramps, not by editing the .ged
-                // files) to MARR and _MEND records, and any references you see
-                // in this program to "_FA1" are the skeletons of dinosaurs.
-                //
-                // Within the GEDCOM rules, I'm not sure it's possible to do
-                // better than the _MSTAT and _MEND records. On the other hand,
-                // other (non-Gramps) genealogical programs may handle these
-                // things differently. That's a possible problem ... for later.
-            
-                // First child node should be tagged "TYPE", with value "_MSTAT"
-                // or "_MEND". Other child nodes may be DATE or PLAC.
-                if child.childNodes.count < 1 {
+                
+                subtree.dataLine.hasBeenRead = true
+ 
+            case "EVEN":
+                if subtree.childNodes.count < 1 {
                     errors.writeln(lineNum,
-                        "EVEN record does not have a TYPE record")
-                        // Don't even label the node as read
-                        continue
+                                   "EVEN record does not have a TYPE record")
+                    // Don't even label the node as read
+                    continue
                 }
-            
-                let typeLine = child.childNodes[0].dataLine
+                
+                let typeLine = subtree.childNodes[0].dataLine
                 switch typeLine.value {
                 
                 case "Death":
@@ -983,75 +927,74 @@ class Ancestry {
                     // place, giving a family.endEvent, but we ignore the
                     // line.value, because it probably says "there was a death".
                     family.endStatus = "Death"
-                    let values = getFromChildrenByTags(parent: child,
+                    let values = getFromChildrenByTags(parent: subtree,
                                                        tags: ["DATE", "PLAC"])
                     if values[0] != nil || values[1] != nil {
                         if family.endEvent != nil {
                             errors.writeln(lineNum,
-                          "attempt to overwrite existing end-of-marriage event")
+                                           "attempt to overwrite existing end-of-marriage event")
                         } else {
                             family.endEvent
                                 = Event(date: values[0], place: values[1])
                         }
                     }
-                    child.childNodes[0].dataLine.hasBeenRead = true
-            
+                    subtree.childNodes[0].dataLine.hasBeenRead = true
+                    
                 // case "_FA1":
-                    // Family Tree Maker used this tag to record "facts" in the
-                    // old .GED files, in just two places, both related to
-                    // information about marriages. Gramps copied the tag in
-                    // those two places. 
-                    // 
-                    // Both instances of _FA1 have been
-                    // replaced by more appropriate directly marriage-related
-                    // tags. I hope _FA1 never reappears, but if it does, how
-                    // it is handled will depend on what information it holds.
-                    // Meanwhile, it's gone!
+                // Family Tree Maker used this tag to record "facts" in the
+                // old .GED files, in just two places, both related to
+                // information about marriages. Gramps copied the tag in
+                // those two places.
+                //
+                // Both instances of _FA1 have been
+                // replaced by more appropriate directly marriage-related
+                // tags. I hope _FA1 never reappears, but if it does, how
+                // it is handled will depend on what information it holds.
+                // Meanwhile, it's gone!
                 
                 case "_MSTAT":
                     // We hope not to be using this case, but here it is.
-                
+                    
                     // There are no further child nodes. We simply store
                     // line.value as beginStatus.
                     family.beginStatus = line.value
-                    child.childNodes[0].dataLine.hasBeenRead = true
-                
+                    subtree.childNodes[0].dataLine.hasBeenRead = true
+                    
                 case "_MEND":
                     // We hope not to be using this case, but here it is.
-                
+                    
                     // We store line.value as endStatus. There may be DATE and
                     // PLAC values that locate the family-ending event.
                     family.endStatus = line.value
-                    let values = getFromChildrenByTags(parent: child,
-                        tags: ["DATE", "PLAC"])
+                    let values = getFromChildrenByTags(parent: subtree,
+                                                       tags: ["DATE", "PLAC"])
                     if values[0] != nil || values[1] != nil {
                         if family.endEvent != nil {
                             errors.writeln(lineNum,
-                          "attempt to overwrite existing end-of-marriage event")
+                                           "attempt to overwrite existing end-of-marriage event")
                         } else {
                             family.endEvent
                                 = Event(date: values[0], place: values[1])
                         }
                     }
-                    child.childNodes[0].dataLine.hasBeenRead = true
-            
+                    subtree.childNodes[0].dataLine.hasBeenRead = true
+                    
                 default:
                     errors.writeln(lineNum, "bad family event \(typeLine.value)")
                     // Don't label any nodes as read.
                     continue
                 }
-            
-                child.dataLine.hasBeenRead = true
-            }
-
-            else if line.tag == "CHIL" {
+                
+                subtree.dataLine.hasBeenRead = true
+  
+            case "CHIL":
                 if let (valueKind, valueIndex) = atStrIntAt(line.value) {
                     if valueKind != "I" {
                         errors.writeln(lineNum,
-                            "bad child personID: \(line.value)")
+                                       "bad child personID: \(line.value)")
                     } else {
                         let child = Child(valueIndex)
-                    
+                        
                         // In GEDCOM 5.5.5, only the child's personID is given.
                         // We're going to add more information later -- such as
                         // the child's relation to its father and/or mother --
@@ -1064,7 +1007,7 @@ class Ancestry {
                         //     errorsFile: &errorsfile
                         //     )
                         if family.children.first(where:
-                                    {$0.personID == child.personID})
+                                                    {$0.personID == child.personID})
                             != nil {
                             errors.writeln(lineNum, "duplicate child personID")
                         } else {
@@ -1074,11 +1017,10 @@ class Ancestry {
                 } else {
                     errors.writeln(lineNum, "bad child personID: \(line.value)")
                 }
-                child.dataLine.hasBeenRead = true // even if we couldn't use it
-            }
-             
-            else {
-                errors.writeln(lineNum, "line ignored: \(child.dataLine.asRead)")
+                subtree.dataLine.hasBeenRead = true
+
+            default:
+                errors.writeln(lineNum, "line ignored: \(subtree.dataLine.asRead)")
             }
             
         } // end of the loop on child records
@@ -1108,27 +1050,29 @@ class Ancestry {
             noteLine += lineZero[range]
         }
 
-        for node in record.childNodes {
-            let lineNum = node.dataLine.lineNum
-            if node.childNodes.count != 0 {
+        for subtree in record.childNodes {
+            let lineNum = subtree.dataLine.lineNum
+            if subtree.childNodes.count != 0 {
                 errors.writeln(lineNum, "bad line level in NOTE")
                 continue
             }
 
-            let line = node.dataLine.value
-            let tag = node.dataLine.tag
+            let line = subtree.dataLine.value // named variable just for clarity
 
-            if tag == "CONT" {
+            switch subtree.dataLine.tag {
+            case "CONT":
                 note.contents.append(noteLine)
                 noteLine = ""
-            }
-            if tag == "CONC" || tag == "CONT" {
+                fallthrough
+
+            case "CONC":
                 noteLine += line
-            } else {
+                
+            default:
                 errors.writeln(lineNum, "bad line tag in NOTE")
             }
         
-            node.dataLine.hasBeenRead = true
+            subtree.dataLine.hasBeenRead = true
         }
     
         if noteLine != "" {
