@@ -19,7 +19,9 @@ fileprivate let UNDERLINE = String(repeating: "-", count: LINE_LENGTH)
 fileprivate let NL = "\n"
 
 
-enum FamilyError: Error {
+// Currently ReportingErrors are only thrown while reporting information about
+// Families.
+enum ReportingError: Error {
     case report(_ who: PersonID, _ msg: String)
 }
 
@@ -215,7 +217,9 @@ extension Person : CustomStringConvertible {
 }
 
 
-
+// If you want to report on people separately from families, the following two
+// commented-out sections might help. But be careful: they may rely on
+// definitions that are no longer valid.
 
 //// Return a description of a Person's family relations, without resolving
 //// details.
@@ -322,11 +326,11 @@ class Reporter {
 
     func report() {
         
+        reportFile.write("\(ancestry.header)")
+        
         var people = ancestry.people // var: because need to be able to change nameForSorting
         
-        if !sortReport {
-            reportFile.write("\(ancestry.header)")
-            
+        if !sortReport {            
             for p in people.keys.sorted() {
                 guard let who = people[p]
                 else {
@@ -340,7 +344,7 @@ class Reporter {
                 reportFile.write("\(who)")
                 do {
                     try reportFile.write(personsFamilyDetails(who))
-                } catch FamilyError.report(let person, let msg) {
+                } catch ReportingError.report(let person, let msg) {
                     errors.writeln(
                         personsNameString(person, showPersonIDs) + " " + msg)
                 } catch {
@@ -400,7 +404,6 @@ class Reporter {
             }
             
             // Produce the report, this time sorted by name.
-            reportFile.write("\(ancestry.header)")
             for who in people.values.sorted(
                 by: {($0.nameForSorting < $1.nameForSorting)
                     || (($0.nameForSorting == $1.nameForSorting)
@@ -409,7 +412,7 @@ class Reporter {
                 reportFile.write("\(who)")
                 do {
                     try reportFile.write(personsFamilyDetails(who))
-                } catch FamilyError.report(let person, let msg) {
+                } catch ReportingError.report(let person, let msg) {
                     errors.writeln(personsNameString(person, showPersonIDs) + " " + msg)
                 } catch {
                     errors.writeln("unknown error: \(error)")
@@ -430,7 +433,7 @@ class Reporter {
         
         // Are there any families here?
         if familyC.count == 0 {
-            throw FamilyError.report(person.personID, "empty familyC")
+            throw ReportingError.report(person.personID, "empty familyC")
         }
         
         // let multiple = familyC.count > 1
@@ -441,7 +444,7 @@ class Reporter {
         if !pluralParents {
             guard let soleFamily = ancestry.families[familyC[0]]
             else {
-                throw FamilyError.report(person.personID, "bad key in familyC")
+                throw ReportingError.report(person.personID, "bad key in familyC")
             }
             if soleFamily.husband != nil && soleFamily.wife != nil {
                 pluralParents = true
@@ -456,13 +459,12 @@ class Reporter {
             whichFamily += 1
             guard let family = ancestry.families[f]
             else {
-                throw FamilyError.report(person.personID, "bad key in familyC")
+                throw ReportingError.report(person.personID, "bad key in familyC")
             }
-            // printerr("looking at family \(f)")
             
             let me = family.children.first() {$0.personID == person.personID}
             if me == nil {
-                throw FamilyError.report(person.personID, "not listed as child")
+                throw ReportingError.report(person.personID, "not listed as child")
             }
             
             if let husband = family.husband {
@@ -511,7 +513,7 @@ class Reporter {
         
         // Are there any families here?
         if familyS.count == 0 {
-            throw FamilyError.report(person.personID, "empty familyS")
+            throw ReportingError.report(person.personID, "empty familyS")
         }
 
         var whichFamily = 0
@@ -522,7 +524,7 @@ class Reporter {
             whichFamily += 1
             guard let family = ancestry.families[f]
             else {
-                throw FamilyError.report(person.personID, "bad key in familyS")
+                throw ReportingError.report(person.personID, "bad key in familyS")
             }
 
             // Am I the husband or the wife?
@@ -538,11 +540,11 @@ class Reporter {
             }
             
             if !isHusband && !isWife {
-                throw FamilyError.report(person.personID, "not listed as parent")
+                throw ReportingError.report(person.personID, "not listed as parent")
             }
             
             if isHusband && isWife {
-                throw FamilyError.report(person.personID, "listed as both parents")
+                throw ReportingError.report(person.personID, "listed as both parents")
             }
             
             if whichFamily > 1 {
