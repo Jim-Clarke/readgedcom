@@ -328,52 +328,44 @@ class Reporter {
         
         reportFile.write("\(ancestry.header)")
         
-        var people = ancestry.people // var: because need to be able to change nameForSorting
+        var people = ancestry.people // var: because need to be able to change
+        // nameForSorting
         
-        if !sortReport {            
+        // The list of people to be printed: has to be constructed separately
+        // for the unsorted and sorted cases.
+        var sortedPeople = [Person]()
+        
+        if !sortReport {
+            // Sort by personID -- the key to the "people" dictionary.
             for p in people.keys.sorted() {
                 guard let who = people[p]
                 else {
                     errors.writeln("bad key \(p) in people.keys")
                     continue
                 }
-                
-                // Build up the major output file carefully, so as to get
-                // newlines only where we really want them.
-                
-                reportFile.write("\(who)")
-                do {
-                    try reportFile.write(personsFamilyDetails(who))
-                } catch ReportingError.report(let person, let msg) {
-                    errors.writeln(
-                        personsNameString(person, showPersonIDs) + " " + msg)
-                } catch {
-                    errors.writeln("unknown error: \(error)")
-                }
-                reportFile.write(NL)
-                reportFile.write(personNotes(who))
-                reportFile.write(NL)
+                sortedPeople.append(who)
             }
         }
-        
         else {
-            // Prepare for sorting the people by name.
+            // Sort by name: copy the unsorted list of people to sortedPeople,
+            // give each list item its sort key, and then sort the list.
             
-            for p in people.keys {
-                guard people[p] != nil
-                else {
-                    errors.writeln("bad key \(p) in people.keys")
-                    continue
-                }
-                // let rawName = people[p]!.name
-                // people[p]!.nameForSorting = rawName // in case of trouble
-                
+            // Build the list.
+            for who in people.values {
+                sortedPeople.append(who)
+            }
+
+            // Make the sort keys.
+            for w in 0 ..< sortedPeople.count {
+                let who = sortedPeople[w]
+                // Careful! Person is a struct, not a class -- changes to "who"
+                // will vanish when we leave this loop.
                 var sortingName: String
-                if people[p]!.names.count > 0 {
+                if who.names.count > 0 {
                     // Probably surName already has a value, but let's be
                     // careful.
-                    sortingName = people[p]!.names[0].surName ?? ""
-                    sortingName += people[p]!.names[0].baseName
+                    sortingName = who.names[0].surName ?? ""
+                    sortingName += who.names[0].baseName
                     // The surName will be repeated, because it's part of the
                     // baseName, but that won't change the sorting; and if
                     // surnamePrefix is supplied, then surName does not include
@@ -381,51 +373,42 @@ class Reporter {
                 } else {
                     sortingName = "/no name/"
                 }
-                people[p]!.nameForSorting = sortingName
-                
-                // Deleted dissection of name parts using regular expressions. Instead
-                // we now let Gramps (or whoever) figure out the surname for us.
-                // let pat = #"^(.*) \/(.*)\/$"#
-                // let matches = applyRegex(pattern: pat, target: rawName)
-                //
-                // if matches.count != 1 {
-                //     // There are one-part names, so this probably isn't an error.
-                //     continue
-                // }
-                //
-                // let matchStrings = matches[0]
-                // if matchStrings.count != 3 { // overall match, and the two parts
-                //     errorsfile.writeln("unmatchable name for person key \(p)")
-                //     continue
-                // }
-                //
-                // let nameForSorting = "/" + matchStrings[2] + "/ " + matchStrings[1]
-                // people[p]!.nameForSorting = nameForSorting
+                sortedPeople[w].nameForSorting = sortingName
             }
             
-            // Produce the report, this time sorted by name.
-            for who in people.values.sorted(
+            // Sort the list.
+            sortedPeople.sort(
                 by: {($0.nameForSorting < $1.nameForSorting)
                     || (($0.nameForSorting == $1.nameForSorting)
                             && ($0.personID < $1.personID))
-                }) {
-                reportFile.write("\(who)")
-                do {
-                    try reportFile.write(personsFamilyDetails(who))
-                } catch ReportingError.report(let person, let msg) {
-                    errors.writeln(personsNameString(person, showPersonIDs) + " " + msg)
-                } catch {
-                    errors.writeln("unknown error: \(error)")
-                }
-                reportFile.write(NL)
-                reportFile.write(personNotes(who))
-                reportFile.write(NL)
+                })
+        }
+
+
+        // The people are in order. Time to write them!
+        
+        for who in sortedPeople {
+            
+            // Build up the major output file carefully, so as to get newlines
+            // only where we really want them.
+            
+            reportFile.write("\(who)")
+            do {
+                try reportFile.write(personsFamilyDetails(who))
+            } catch ReportingError.report(let person, let msg) {
+                errors.writeln(
+                    personsNameString(person, showPersonIDs) + " " + msg)
+            } catch {
+                errors.writeln("unknown error: \(error)")
             }
+            reportFile.write(NL)
+            reportFile.write(personNotes(who))
+            reportFile.write(NL)
         }
     }
 
-    // Return a description of the details of a Person's familyC relations -- that
-    // is, the families in which the person was a child.
+    // Return a description of the details of a Person's familyC relations --
+    // that is, the families in which the person was a child.
 
     func personsFamilyCDetails(_ person: Person, _ familyC: [FamilyID])
             throws -> String {
