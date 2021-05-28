@@ -43,12 +43,10 @@ typealias FamilyID = Int
 typealias NoteID = GedcomXREF
 
 
-
 struct Event {
     var date: String?
     var place: String?
 }
-
 
 struct DateTime {
     var date: String?
@@ -150,8 +148,6 @@ struct Name {
     }
 }
 
-// enum ChildKind {case adopted, birth, foster, step}
-
 struct Person {
     var personID: PersonID
     var changeDate: DateTime?
@@ -214,6 +210,8 @@ struct Child {
         self.personID = personID
     }
 }
+
+// We need to be able to tell whether one Child is the same person as another.
 
 extension Child: Equatable {
     static func == (one: Child, two: Child) -> Bool {
@@ -407,7 +405,7 @@ class Ancestry {
             }
         }
 
-        // Tell the header about the remaining noteIDs.
+        // Tell the header that it owns the remaining noteIDs.
         header.noteIDs = noteIDs
         
     } // end of buildAncestry
@@ -423,7 +421,9 @@ class Ancestry {
         // given root, and return the number found.
         //
         // THESE ERROR REPORTS ARE CRUCIAL. They tell us whether we've missed
-        // parts of the tree.
+        // parts of the tree. And, fussily, we have other seemingly redundant
+        // checks that might find the same problem ... or are they really
+        // redundant?
 
         func reportUnusedRecords(root: RecordNode) -> Int {
             var count = 0

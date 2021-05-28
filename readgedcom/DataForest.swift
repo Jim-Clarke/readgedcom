@@ -142,4 +142,36 @@ class DataForest {
             errors.writeln("bad trailer record")
         }
     }
+    
+    
+    // Return the number of RecordNodes in this DataForest object that do not
+    // have dataLine.hasBeenRead set. The first two nodes and the last are not
+    // counted, corresponding to the HEAD, and SUBM and TRLR records.
+    //
+    // If printUnreadLines is true, unread lines are reported to errors, except
+    // in the HEAD, SUBM and TRLR records.
+    //
+    // Since Ancestry.checkAncestry() includes an unread-record check that
+    // prints the unread records, you probably don't want to set
+    // printUnreadLines to true unless you're having trouble locating an error.
+    
+    func countUnread(printUnreadLines: Bool = false) -> Int {
+        
+        func countUnreadInNode(_ node: RecordNode) -> Int {
+            var unreadCount = node.dataLine.hasBeenRead ? 0 : 1
+            
+            for child in node.childNodes {
+                unreadCount += countUnreadInNode(child)
+            }
+            
+            return unreadCount
+        }
+        
+        var unreadCount = 0
+        for index in 2 ..< roots.count - 1 {
+            unreadCount += countUnreadInNode(roots[index])
+        }
+
+        return unreadCount
+    }
 }

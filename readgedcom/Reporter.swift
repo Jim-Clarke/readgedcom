@@ -172,7 +172,6 @@ extension Person : CustomStringConvertible {
         
         // Treat other names as "known as". There's a name kind .aka, but we
         // don't need it for the current export file.
-        // if let knownAs = knownAs {
         for n in 1 ..< names.count {
             var nameLabel: String
             if let type = names[n].type {
@@ -326,10 +325,11 @@ class Reporter {
 
     func report() {
         
-        reportFile.write("\(ancestry.header)")
+        // Sort the people -- either by personID (the default) or by name if
+        // sortReport is true.
         
-        var people = ancestry.people // var: because need to be able to change
-        // nameForSorting
+        let people = ancestry.people // var: because need to be able to change
+        // nameForSorting ... nope, can't. We're copying structs here.
         
         // The list of people to be printed: has to be constructed separately
         // for the unsorted and sorted cases.
@@ -385,8 +385,10 @@ class Reporter {
         }
 
 
-        // The people are in order. Time to write them!
+        // Sorted. Write!
         
+        reportFile.write("\(ancestry.header)")
+
         for who in sortedPeople {
             
             // Build up the major output file carefully, so as to get newlines
@@ -407,6 +409,7 @@ class Reporter {
         }
     }
 
+    
     // Return a description of the details of a Person's familyC relations --
     // that is, the families in which the person was a child.
 
@@ -487,8 +490,8 @@ class Reporter {
     }
 
 
-    // Return a description of the details of a Person's familyS relations -- that
-    // is, the families in which the person was a parent.
+    // Return a description of the details of a Person's familyS relations --
+    // that is, the families in which the person was a parent.
 
     func personsFamilySDetails(_ person: Person, _ familyS: [FamilyID])
             throws -> String {
@@ -703,6 +706,5 @@ class Reporter {
         return formattedNoteList(person.noteIDs)
     }
 
-    
 }
 

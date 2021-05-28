@@ -111,7 +111,7 @@ class ParsedData {
     }
     
     
-    // Discarded check output, preserved to ward off evil spirits.
+    // Discarded check output -- conceivably might be useful again
     
     // Write the input data in case the user wants to look at them.
     // var lineNum = 1
@@ -175,5 +175,90 @@ class ParsedData {
                 errors.writeln(i, "unexpected level jump")
             }
         }
+    }
+    
+    
+    // Return the number of DataLines in this ParsedData object that do not have
+    // hasBeenRead set. DataLines are not counted that are part of the first
+    // two GEDCOM records (HEAD and SUBM) or the last (TRLR).
+    //
+    // If printUnreadLines is true, unread lines are reported to errors, except
+    // in the HEAD, SUBM and TRLR records.
+    //
+    // Since Ancestry.checkAncestry() includes an unread-record check that
+    // prints the unread records, you probably don't want to set
+    // printUnreadLines to true unless you're having trouble locating an error.
+    
+    func countUnread(printUnreadLines: Bool = false) -> Int {
+        if parsedLines.count == 0 {
+            errors.writeln("countUnread found parsedLines was empty")
+            return 0
+        }
+        
+        var lineNum = 0 // zero-based, remember
+        
+        // The HEAD record
+        var line = parsedLines[lineNum]
+        if line.level != 0 || line.tag != "HEAD" {
+            errors.writeln(lineNum, "unexpected level or tag in \(line.asRead)")
+        }
+        lineNum += 1
+        while lineNum < parsedLines.count && parsedLines[lineNum].level > 0 {
+            lineNum += 1
+        }
+
+        // The SUBM record
+        if lineNum >= parsedLines.count {
+            errors.writeln("countUnread ran out of lines before the SUBM record")
+            return 0
+        }
+        line = parsedLines[lineNum]
+        if line.level != 0 || line.tag != "@SUBM@" {
+            errors.writeln(lineNum, "unexpected level or tag in \(line.asRead)")
+        }
+        lineNum += 1
+        while lineNum < parsedLines.count && parsedLines[lineNum].level > 0 {
+            lineNum += 1
+        }
+        
+        // The actual data records
+        if lineNum >= parsedLines.count {
+            errors.writeln("countUnread ran out of lines before actual data")
+            return 0
+        }
+        line = parsedLines[lineNum]
+        if line.level != 0 {
+            errors.writeln(lineNum, "unexpected level in \(line.asRead)")
+        }
+        // Stay on the same line for the first loop iteration.
+
+        // Start counting.
+        
+        var unreadCount = 0 // will be the value returned
+
+        while lineNum < parsedLines.count {
+            line = parsedLines[lineNum]
+            if line.level == 0 && line.tag == "TRLR" {
+                break
+            }
+            if !line.hasBeenRead {
+                unreadCount += 1
+                if printUnreadLines {
+                    errors.writeln(lineNum, "line has not been read: \(line.asRead)")
+                }
+            }
+            lineNum += 1
+        }
+        
+        // Check the last record.
+        line = parsedLines[lineNum]
+        if lineNum != parsedLines.count - 1
+            || line.level != 0
+            || line.tag != "TRLR"
+        {
+            errors.writeln("countUnread did not find final TRLR record")
+        }
+        
+        return unreadCount
     }
 }

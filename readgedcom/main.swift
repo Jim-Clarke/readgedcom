@@ -110,17 +110,19 @@ errorsfile = OutFile(hereDir + "dev.err")
 
 // Prepare to report on errors and summarize results.
 var summary = ""
+func smry(_ msg: String) { summary += msg + "\n" }
 
 // Start activity summary
 let now = Date()
 let formatter = DateFormatter()
 formatter.timeZone = TimeZone.current
 formatter.dateFormat = "yyy-MM-dd HH:mm:ss"
-summary += "Running at \(formatter.string(from: now))\n"
-summary += "Input file: \(infileName)\n"
+smry("Running at \(formatter.string(from: now))")
+smry("Input file: \(infileName)")
 
 
 // Read the input.
+smry("\nReading data, then building data structures ...")
 var rawData: [Substring]
 do {
     rawData = try InFile(hereDir + infileName).read()
@@ -129,24 +131,43 @@ catch FileError.failedRead(let msg) {
     errorsfile.writeln(msg)
     exit(1)
 }
-summary += "Lines read: \(rawData.count)\n"
+smry("Lines read: \(rawData.count)")
 
 // Break the input lines into parts, as DataLine values.
 let data = ParsedData(rawLines: rawData, errors: errorsfile)
-summary += "Lines parsed: \(data.count)\n"
+smry("Lines parsed: \(data.count) [should be same as lines read]")
+smry("Parsed lines not read: \(data.countUnread())"
+    + " [should be somewhat fewer than lines read]")
 
 // Build the forest of data.
 let dataForest = DataForest(data: data, errors: errorsfile)
-summary += "Records built: \(dataForest.roots.count)\n"
+let nRoots = dataForest.roots.count
+smry("Records (tree roots) built: \(nRoots)")
+smry("Tree nodes not read: \(dataForest.countUnread())"
+    + " [should be same as parsed lines not read]")
 
 // Build the actual family "tree".
+smry("\nBuilding ancestry from structured data ...")
 let ancestry = Ancestry(dataForest, errors: errorsfile)
-summary += "Lines ignored: \(ancestry.unusedLineCount)\n"
-summary += "Persons: \(ancestry.people.count)\n"
-summary += "Families: \(ancestry.families.count)\n"
-summary += "Notes: \(ancestry.notes.count)\n"
-summary += "\"Lines ignored\" should be 0.\n"
-summary += "\"Records built\" should be Persons + Families + Notes + 3.\n"
+smry("Lines ignored: \(ancestry.unusedLineCount) [should be 0]")
+let nPersons = ancestry.people.count
+let nFamilies = ancestry.families.count
+let nNotes = ancestry.notes.count
+smry("Persons: \(nPersons)")
+smry("Families: \(nFamilies)")
+smry("Notes: \(nNotes)")
+smry("\"Records (tree roots) built\" should be Persons + Families + Notes + 3.")
+smry("    (3 is the number of non-data records: HEAD, SUBM and TRLR.)")
+if nRoots == nPersons + nFamilies + nNotes + 3 {
+    smry("... yes, \(nRoots) = \(nPersons) + \(nFamilies) + \(nNotes) + 3")
+} else {
+    smry("... trouble!  \(nRoots) not= \(nPersons) + \(nFamilies) + \(nNotes) + 3")
+}
+
+// Set printUnreadLines: true in data.countUnread to get more information.
+smry("Parsed lines not read: \(data.countUnread()) [should be 0]")
+// Set printUnreadLines: true in dataForest.countUnread to get more information.
+smry("Tree nodes not read: \(dataForest.countUnread()) [should be 0]")
 
 // Produce the report.
 let reporter = Reporter(ancestry, infileName, showPersonIDs, sortReport,
@@ -155,7 +176,7 @@ reporter.report()
 
 // Summarize.
 if !errorsfile.hasBeenUsed {
-    errorsfile.writeln("No errors were reported during processing\n")
+    errorsfile.writeln("No errors were reported during processing.\n")
 }
 else {
     errorsfile.writeln("\nEnd of error reports\n")
