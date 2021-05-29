@@ -148,7 +148,7 @@ struct Name {
     }
 }
 
-struct Person {
+class Person {
     var personID: PersonID
     var changeDate: DateTime?
     var names = [Name]() // The caller is responsible for ensuring that there is
