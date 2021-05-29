@@ -64,7 +64,7 @@ struct Note {
 }
 
 
-struct Header {
+class Header {
     // Information from the very first top-level record in the GEDCOM file. We
     // use only part of it here.
     
@@ -79,7 +79,7 @@ struct Header {
     var notes: String? // to be set by a Reporter based on noteIDs
 }
 
-struct Submitter {
+class Submitter {
     // Not used at present.
 }
 
