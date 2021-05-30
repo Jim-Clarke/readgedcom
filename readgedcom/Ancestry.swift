@@ -53,7 +53,7 @@ struct DateTime {
     var time: String?
 }
 
-struct Note {
+class Note {
     var noteID: NoteID // a string, remember
     var belongsTo: PersonID?
     var contents = [String]() // one String per paragraph
@@ -84,7 +84,7 @@ class Submitter {
 }
 
 
-struct Name {
+class Name {
     // The GEDCOM standard specifies the parts listed. Apart from baseName,
     // all are optional in GEDCOM 5.5.1, but required in 5.5.5. As of Sept
     // 2020, we use at most the parts noted below -- some inserted automatically
@@ -201,7 +201,7 @@ class Person {
     }
 }
 
-struct Child {
+class Child {
     var personID: PersonID
     var relationToFather: String?
     var relationToMother: String?
@@ -219,7 +219,7 @@ extension Child: Equatable {
     }
 }
 
-struct Family {
+class Family {
     var familyID: FamilyID
     var changeDate: DateTime?
     var husband: PersonID?
@@ -585,9 +585,9 @@ class Ancestry {
             }
 
             // There are lines in the header we don't feel obliged to handle.
-            // Consequently, we don't set child.dataLine.hasBeenRead, and
-            // the default case doesn't say:
-            // errors.writeln(lineNum, "line ignored: \(child.dataLine.asRead)")
+            // Consequently, we don't set line.hasBeenRead, and the default case
+            // doesn't say:
+            // errors.writeln(lineNum, "line ignored: \(line.asRead)")
 
  
         } // end of the loop on child treenodes
@@ -603,7 +603,7 @@ class Ancestry {
     // checked before this function is called.
 
     func buildPerson(_ record: RecordNode, personID: PersonID) -> Person {
-        var who = Person(personID)
+        let who = Person(personID)
     
         for subtree in record.childNodes {
             let line = subtree.dataLine
@@ -617,19 +617,19 @@ class Ancestry {
 
                 // Read the child DATE node and grandchild TIME node.
                 if subtree.childNodes.count < 1 {
-                    errors.writeln(subtree.dataLine.lineNum,
+                    errors.writeln(line.lineNum,
                         "CHAN node doesn't start with a DATE child")
                 }
                 else {
                     who.changeDate = getDateTime(record: subtree.childNodes[0])
                 }
-                subtree.dataLine.hasBeenRead = true
+                line.hasBeenRead = true
         
             case "NAME":
                 // var name = Name(baseName: line.value)
                 // let trimmedName = line.value.trimmingCharacters(in: .whitespaces)
                 let trimmedName = trimWhitespace(line.value)
-                var name = Name(baseName: trimmedName)
+                let name = Name(baseName: trimmedName)
                 // if line.value == "" {
                 if trimmedName == "" {
                     errors.writeln(lineNum, "empty name in NAME record")
@@ -666,7 +666,7 @@ class Ancestry {
                 }
            
                 who.names.append(name)
-                subtree.dataLine.hasBeenRead = true
+                line.hasBeenRead = true
         
             // The ALIA record is no longer defined in GEDCOM.
             // else if line.tag == "ALIA" {
@@ -674,13 +674,13 @@ class Ancestry {
             case "SEX":
                 checkedAssignString(toBeSet: &who.sex, value: line.value,
                     identifier: "sex", lineNum: lineNum)
-                subtree.dataLine.hasBeenRead = true
+                line.hasBeenRead = true
         
             case "TITL":
                 // Needed only if we get nobility into the family.
                 checkedAssignString(toBeSet: &who.title, value: line.value,
                     identifier: "title", lineNum: lineNum)
-                subtree.dataLine.hasBeenRead = true
+                line.hasBeenRead = true
         
             case "BIRT", "DEAT", "BURI", "EMIG":
                 // events that need a date and a place
@@ -727,7 +727,7 @@ class Ancestry {
                         break
                     }
                 }
-                subtree.dataLine.hasBeenRead = true
+                line.hasBeenRead = true
                 
             case "NOTE":
                 // if let (valueKind, valueIndex) = atStrIntAt(line.value) {
@@ -742,7 +742,7 @@ class Ancestry {
                 } else {
                     errors.writeln(lineNum, "bad note ID: \(line.value)")
                 }
-                subtree.dataLine.hasBeenRead = true
+                line.hasBeenRead = true
 
             case "FAMS", "FAMC":
                 if let (valueKind, valueIndex) = atStrIntAt(line.value) {
@@ -791,10 +791,10 @@ class Ancestry {
                 } else {
                     errors.writeln(lineNum, "bad family ID: \(line.value)")
                 }
-                subtree.dataLine.hasBeenRead = true
+                line.hasBeenRead = true
                             
             default:
-                errors.writeln(lineNum, "line ignored: \(subtree.dataLine.asRead)")
+                errors.writeln(lineNum, "line ignored: \(line.asRead)")
             }
             
         } // end of the loop on child treenodes
@@ -810,7 +810,7 @@ class Ancestry {
     // checked before this function is called.
 
     func buildFamily(_ record: RecordNode, familyID: FamilyID) -> Family {
-        var family = Family(familyID)
+        let family = Family(familyID)
 
         for subtree in record.childNodes {
             let line = subtree.dataLine
@@ -824,13 +824,13 @@ class Ancestry {
                 
                 // Read the child DATE node and grandchild TIME node.
                 if subtree.childNodes.count < 1 {
-                    errors.writeln(subtree.dataLine.lineNum,
+                    errors.writeln(line.lineNum,
                                    "CHAN node doesn't start with a DATE child")
                 }
                 else {
                     family.changeDate = getDateTime(record: subtree.childNodes[0])
                 }
-                subtree.dataLine.hasBeenRead = true
+                line.hasBeenRead = true
  
             case "HUSB", "WIFE":
                 if let (valueKind, valueIndex) = atStrIntAt(line.value) {
@@ -856,7 +856,7 @@ class Ancestry {
                     errors.writeln(lineNum,
                                    "bad husband/wife personID: \(line.value)")
                 }
-                subtree.dataLine.hasBeenRead = true
+                line.hasBeenRead = true
   
             case "MARR":
                 if line.value != "" {
@@ -878,7 +878,7 @@ class Ancestry {
                     }
                 }
                 
-                subtree.dataLine.hasBeenRead = true
+                line.hasBeenRead = true
  
             case "DIV":
                 if line.value != "" && line.value != "Y" {
@@ -906,7 +906,7 @@ class Ancestry {
                     }
                 }
                 
-                subtree.dataLine.hasBeenRead = true
+                line.hasBeenRead = true
  
             case "EVEN":
                 if subtree.childNodes.count < 1 {
@@ -982,7 +982,7 @@ class Ancestry {
                     continue
                 }
                 
-                subtree.dataLine.hasBeenRead = true
+                line.hasBeenRead = true
   
             case "CHIL":
                 if let (valueKind, valueIndex) = atStrIntAt(line.value) {
@@ -1014,10 +1014,10 @@ class Ancestry {
                 } else {
                     errors.writeln(lineNum, "bad child personID: \(line.value)")
                 }
-                subtree.dataLine.hasBeenRead = true
+                line.hasBeenRead = true
 
             default:
-                errors.writeln(lineNum, "line ignored: \(subtree.dataLine.asRead)")
+                errors.writeln(lineNum, "line ignored: \(line.asRead)")
             }
             
         } // end of the loop on child treenodes
@@ -1033,7 +1033,7 @@ class Ancestry {
     // note.
 
     func buildNote(_ record: RecordNode, noteID: NoteID) -> Note {
-        var note = Note(noteID)
+        let note = Note(noteID)
     
         let dataLine = record.dataLine
     

@@ -356,10 +356,11 @@ class Reporter {
             }
 
             // Make the sort keys.
-            for w in 0 ..< sortedPeople.count {
-                let who = sortedPeople[w]
-                // Careful! Person is a struct, not a class -- changes to "who"
-                // will vanish when we leave this loop.
+            for who in sortedPeople {
+            // for w in 0 ..< sortedPeople.count {
+            //     let who = sortedPeople[w]
+            //     // Careful! Person is a struct, not a class -- changes to "who"
+            //     // will vanish when we leave this loop.
                 var sortingName: String
                 if who.names.count > 0 {
                     // Probably surName already has a value, but let's be
@@ -373,7 +374,8 @@ class Reporter {
                 } else {
                     sortingName = "/no name/"
                 }
-                sortedPeople[w].nameForSorting = sortingName
+                who.nameForSorting = sortingName
+                // sortedPeople[w].nameForSorting = sortingName
             }
             
             // Sort the list.
