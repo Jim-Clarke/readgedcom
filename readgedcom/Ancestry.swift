@@ -43,14 +43,28 @@ typealias FamilyID = Int
 typealias NoteID = GedcomXREF
 
 
-struct Event {
+class Event {
     var date: String?
     var place: String?
+    
+    init(date: String?, place: String?) {
+        self.date = date
+        self.place = place
+    }
 }
 
-struct DateTime {
+class DateTime {
     var date: String?
     var time: String?
+
+    // Currently there are no instances of DateTime created with nil date or
+    // time, so (unlike Event) the initializer can insist on Strings and not
+    // String?s as parameter values. It would probably not be a problem to
+    // change that; it wasn't with Event.
+    init(date: String, time: String) {
+        self.date = date
+        self.time = time
+    }
 }
 
 class Note {
@@ -536,7 +550,7 @@ class Ancestry {
     // and families. Actual genealogists might not want all this stuff.
 
     func buildHeader(_ record: RecordNode) -> Header {
-        var header = Header()
+        let header = Header()
 
         for subtree in record.childNodes {
             let line = subtree.dataLine
