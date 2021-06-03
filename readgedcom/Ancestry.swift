@@ -206,8 +206,10 @@ class Person {
     // tag, and describes one of the families in which the Person is a wife
     // or husband. The Person's children, listed in familyS, list that family
     // as a familyC of their own.
-    var familyS: [FamilyID]? // list of indices of the family S ("started"?)
-    var familyC: [FamilyID]? // list of indices of the family C ("child"?)
+    var familyS: [FamilyID]? // list of indices of families S ("started"?)
+    // -- families in which this Person is the husband or wife
+    var familyC: [FamilyID]? // list of indices of the families C ("child"?)
+    // -- families in which this Person is a child
     
     init(_ personID: PersonID) {
         self.personID = personID
@@ -293,6 +295,13 @@ class Ancestry {
         // family shouldn't have more than a few tens of thousands of lines,
         // and (2) Swift is supposed to be clever about not actually making new
         // copies of Strings if it can help it.
+        //
+        // Well, and also, now that all structs have been replaced with classes,
+        // there should be a good deal less copying. Further, Swift is clever
+        // about copying arrays only when necessary (as well as Strings).
+        //
+        // Finally, unless your family history is really gigantic, the cost of
+        // the operations in this program is pretty minimal.
         //
         // But still.
         
@@ -383,7 +392,7 @@ class Ancestry {
         for f in families.keys {
             for c in 0 ..< families[f]!.children.count {
                 let child = people[families[f]!.children[c].personID]
-                var pediDad: String?
+                var pediDad: String? // pedigree via father: how related to dad?
                 var pediMom: String?
                 (pediDad, pediMom) = child!.pedigrees[f]!
                 families[f]!.children[c].relationToFather = pediDad
@@ -437,7 +446,9 @@ class Ancestry {
         // THESE ERROR REPORTS ARE CRUCIAL. They tell us whether we've missed
         // parts of the tree. And, fussily, we have other seemingly redundant
         // checks that might find the same problem ... or are they really
-        // redundant?
+        // redundant? Error messages are a priceless resource, so it's better to
+        // print an extra message than to think hard (but incorrectly) to remove
+        // all extras.
 
         func reportUnusedRecords(root: RecordNode) -> Int {
             var count = 0
@@ -644,7 +655,6 @@ class Ancestry {
                 // let trimmedName = line.value.trimmingCharacters(in: .whitespaces)
                 let trimmedName = trimWhitespace(line.value)
                 let name = Name(baseName: trimmedName)
-                // if line.value == "" {
                 if trimmedName == "" {
                     errors.writeln(lineNum, "empty name in NAME record")
                 }
@@ -653,8 +663,8 @@ class Ancestry {
                 let values = getFromChildrenByTags(parent: subtree,
                                                    tags:
                     ["TYPE", "GIVN", "SURN", "NPFX", "NICK", "SPFX", "NSFX"])
-                (name.type, name.givenName, name.surName, name.prefix, name.nickName,
-                    name.surnamePrefix, name.suffix)
+                (name.type, name.givenName, name.surName, name.prefix,
+                    name.nickName, name.surnamePrefix, name.suffix)
                     =
                     (values[0], values[1], values[2], values[3], values[4],
                         values[5], values[6])
@@ -684,6 +694,7 @@ class Ancestry {
         
             // The ALIA record is no longer defined in GEDCOM.
             // else if line.tag == "ALIA" {
+            // that is, case "ALIA": ALIA-handling was dropped many versions ago
         
             case "SEX":
                 checkedAssignString(toBeSet: &who.sex, value: line.value,
@@ -744,12 +755,10 @@ class Ancestry {
                 line.hasBeenRead = true
                 
             case "NOTE":
-                // if let (valueKind, valueIndex) = atStrIntAt(line.value) {
                 if let (valueKind, _) = atStrIntAt(line.value) {
                     if valueKind != "NI" && valueKind != "N" {
                         errors.writeln(lineNum, "bad note ID: \(line.value)")
-                    // } else if who.noteExpected != nil {
-                    //     errors.writeln(lineNum, "second note expected for same person")
+
                     } else {
                         who.noteIDs.append(line.value)
                     }
@@ -758,48 +767,58 @@ class Ancestry {
                 }
                 line.hasBeenRead = true
 
-            case "FAMS", "FAMC":
+            case "FAMS":
                 if let (valueKind, valueIndex) = atStrIntAt(line.value) {
                     if valueKind != "F" {
                         errors.writeln(lineNum, "bad family ID: \(line.value)")
                     } else {
-                        if line.tag == "FAMS" {
-                            if who.familyS == nil {
-                                who.familyS = [FamilyID]()
-                            }
-                            who.familyS!.append(valueIndex)
-                        } else {
-                            assert(line.tag == "FAMC")
-                            if who.familyC == nil {
-                                who.familyC = [FamilyID]()
-                            }
-                            who.familyC!.append(valueIndex)
+                        if who.familyS == nil {
+                            who.familyS = [FamilyID]()
+                        }
+                        who.familyS!.append(valueIndex)
+                    }
+                } else {
+                    errors.writeln(lineNum, "bad family ID: \(line.value)")
+                }
+                line.hasBeenRead = true
 
-                            // In GEDCOM 5.5.5, the pedigree (tag "PEDI") is
-                            // part of the child's FAMC record, and Gramps does
-                            // this. Gramps also allows alternatives to PEDI:
-                            // _MREL and _FREL for the relationships to the
-                            // parents separately.
-                            //
-                            // This is an odd place to put this information,
-                            // which is really part of the family relationship,
-                            // not the child alone. But here we are.
-                            let values = getFromChildrenByTags(parent: subtree,
-                                tags: ["PEDI", "_FREL", "_MREL"])
-                            // There can be a PEDI for both relationships, or an
-                            // _FREL and/or an _MREL, but not both a PEDI and
-                            // some of the other two.
-                            if values[0] != nil {
-                                if values[1] != nil || values[2] != nil {
-                                    errors.writeln(lineNum,
-                                "too much child-parent relationship information")
-                                }
-                                who.pedigrees[valueIndex] = (values[0], values[0])
+            case "FAMC":
+                if let (valueKind, valueIndex) = atStrIntAt(line.value) {
+                    if valueKind != "F" {
+                        errors.writeln(lineNum, "bad family ID: \(line.value)")
+                    } else {
+                        if who.familyC == nil {
+                            who.familyC = [FamilyID]()
+                        }
+                        who.familyC!.append(valueIndex)
+
+                        // In GEDCOM 5.5.5, the pedigree (tag "PEDI") is part of
+                        // the child's FAMC record, and that's how Gramps does
+                        // it too. Gramps also allows alternatives to PEDI:
+                        // _MREL and _FREL for the relationships to the parents
+                        // separately.
+                        //
+                        // This is an odd place to put this information, which
+                        // is really part of the family relationship, not the
+                        // child alone. But here we are.
+                        //
+                        // This gets fixed in buildAncestry(), after all the
+                        // people and families have been built.
+                        
+                        let values = getFromChildrenByTags(parent: subtree,
+                            tags: ["PEDI", "_FREL", "_MREL"])
+                        // There can be a PEDI for both relationships, or an
+                        // _FREL and/or an _MREL, but not both a PEDI and
+                        // some of the other two.
+                        if values[0] != nil {
+                            if values[1] != nil || values[2] != nil {
+                                errors.writeln(lineNum,
+                              "too much child-parent relationship information")
                             }
-                            else {
-                                who.pedigrees[valueIndex] = (values[1], values[2])
-                                // printerr("pedigrees: \(values[1] ?? "nil") \(values[2] ?? "nil")")
-                            }
+                            who.pedigrees[valueIndex] = (values[0], values[0])
+                        }
+                        else {
+                            who.pedigrees[valueIndex] = (values[1], values[2])
                         }
                     }
                 } else {
@@ -846,32 +865,42 @@ class Ancestry {
                 }
                 line.hasBeenRead = true
  
-            case "HUSB", "WIFE":
+            case "WIFE":
                 if let (valueKind, valueIndex) = atStrIntAt(line.value) {
                     if valueKind != "I" {
                         errors.writeln(lineNum,
-                                       "bad husband/wife personID: \(line.value)")
+                                       "bad wife personID: \(line.value)")
                     } else {
-                        if line.tag == "HUSB" {
-                            if family.husband != nil {
-                                errors.writeln(lineNum,
-                                               "second personID for husband")
-                            }
-                            family.husband = valueIndex
-                        } else {
-                            if family.wife != nil {
-                                errors.writeln(lineNum,
-                                               "second personID for wife")
-                            }
-                            family.wife = valueIndex
+                        if family.wife != nil {
+                            errors.writeln(lineNum,
+                                           "second personID for wife")
                         }
+                        family.wife = valueIndex
                     }
                 } else {
                     errors.writeln(lineNum,
-                                   "bad husband/wife personID: \(line.value)")
+                                   "bad wife personID: \(line.value)")
                 }
                 line.hasBeenRead = true
-  
+ 
+            case "HUSB":
+                if let (valueKind, valueIndex) = atStrIntAt(line.value) {
+                    if valueKind != "I" {
+                        errors.writeln(lineNum,
+                                       "bad husband personID: \(line.value)")
+                    } else {
+                        if family.husband != nil {
+                            errors.writeln(lineNum,
+                                           "second personID for husband")
+                        }
+                        family.husband = valueIndex
+                    }
+                } else {
+                    errors.writeln(lineNum,
+                                   "bad husband personID: \(line.value)")
+                }
+                line.hasBeenRead = true
+
             case "MARR":
                 if line.value != "" {
                     errors.writeln(lineNum, "MARR line with non-empty value")
@@ -886,7 +915,7 @@ class Ancestry {
                 if newEvent != nil {
                     if family.marriage != nil {
                         errors.writeln(lineNum,
-                                       "attempt to overwrite existing marriage event")
+                                "attempt to overwrite existing marriage event")
                     } else {
                         family.marriage = newEvent
                     }
@@ -903,7 +932,14 @@ class Ancestry {
                 
                 if line.value != "Y" {
                     // If "Y", all we know is that there was a divorce.
+                    
+                    // I have no examples of other values that might be in a DIV
+                    // line, so this part is left for you to fix when the need
+                    // arises.
                 }
+                
+                // I have no examples of a divorce with an associated event, but
+                // this should handle it....
                 let values = getFromChildrenByTags(parent: subtree,
                                                    tags: ["DATE", "PLAC"])
                 var newEvent: Event? = nil
@@ -914,7 +950,7 @@ class Ancestry {
                 if newEvent != nil {
                     if family.endEvent != nil {
                         errors.writeln(lineNum,
-                                       "attempt to overwrite existing end event of marriage")
+                          "attempt to overwrite existing end event of marriage")
                     } else {
                         family.endEvent = newEvent
                     }
@@ -926,7 +962,7 @@ class Ancestry {
                 if subtree.childNodes.count < 1 {
                     errors.writeln(lineNum,
                                    "EVEN record does not have a TYPE record")
-                    // Don't even label the node as read
+                    // Don't even label the node as read.
                     continue
                 }
                 
@@ -943,7 +979,7 @@ class Ancestry {
                     if values[0] != nil || values[1] != nil {
                         if family.endEvent != nil {
                             errors.writeln(lineNum,
-                                           "attempt to overwrite existing end-of-marriage event")
+                          "attempt to overwrite existing end-of-marriage event")
                         } else {
                             family.endEvent
                                 = Event(date: values[0], place: values[1])
@@ -953,15 +989,14 @@ class Ancestry {
                     
                 // case "_FA1":
                 // Family Tree Maker used this tag to record "facts" in the
-                // old .GED files, in just two places, both related to
-                // information about marriages. Gramps copied the tag in
-                // those two places.
+                // old .GED files [the ones that provoked this entire program],
+                // in just two places, both related to information about
+                // marriages. Gramps imported the tag in those two places.
                 //
-                // Both instances of _FA1 have been
-                // replaced by more appropriate directly marriage-related
-                // tags. I hope _FA1 never reappears, but if it does, how
-                // it is handled will depend on what information it holds.
-                // Meanwhile, it's gone!
+                // I replaced both instances of _FA1 with more appropriate
+                // directly marriage-related tags. I hope _FA1 never reappears,
+                // but if it does, how it is handled will depend on what
+                // information it holds. Meanwhile, it's gone!
                 
                 case "_MSTAT":
                     // We hope not to be using this case, but here it is.
@@ -1010,15 +1045,9 @@ class Ancestry {
                         // We're going to add more information later -- such as
                         // the child's relation to its father and/or mother --
                         // but we can't get it while reading the family record.
-                        // let linesUsed = buildChild(childToBuild: &child,
-                        //     firstLine: record.lines[i + 1],
-                        //     secondLine: record.lines[i + 2],
-                        //     baseLineNumber: lineNum,
-                        //     baseLevel: line.level,
-                        //     errorsFile: &errorsfile
-                        //     )
+
                         if family.children.first(where:
-                                                    {$0.personID == child.personID})
+                                            {$0.personID == child.personID})
                             != nil {
                             errors.writeln(lineNum, "duplicate child personID")
                         } else {
@@ -1130,7 +1159,7 @@ func atStrIntAt(_ inStr: String) -> (String, Int)? {
     guard let secondInt = Int(matchStrings[2]) else {
         return failResult
     }
-    // if secondInt <= 0 {
+    // if secondInt <= 0 { // Can't happen: no minus sign in pat.
     //     return failResult
     // }
     

@@ -19,8 +19,8 @@ fileprivate let UNDERLINE = String(repeating: "-", count: LINE_LENGTH)
 fileprivate let NL = "\n"
 
 
-// Currently ReportingErrors are only thrown while reporting information about
-// Families.
+// Currently ReportingErrors are only thrown while linking information about
+// Persons to information about Families.
 enum ReportingError: Error {
     case report(_ who: PersonID, _ msg: String)
 }
@@ -81,21 +81,19 @@ extension Header : CustomStringConvertible {
     }
 }
 
-func familyIDString(_ familyID: FamilyID) -> String {
-    // if SHOW_FAMILYIDS {
-        return "[\(familyID)]"
-    // } else {
-    //     return "[ff]"
-    // }
-}
+//func familyIDString(_ familyID: FamilyID) -> String {
+//    // Once upon a time, we printed information about families. Maybe you'll
+//    // want to do that again?
+//    // if SHOW_FAMILYIDS {
+//        return "[\(familyID)]"
+//    // } else {
+//    //     return "[ff]"
+//    // }
+//}
 
 extension Event : CustomStringConvertible {
     var description: String {
         var result = ""
-        // if date != nil || place != nil {
-        //     result += "date: " + (date ?? "")
-        //     result += "  place: " + (place ?? "")
-        // }
         
         if date != nil {
             result += "date: " + date!
@@ -117,8 +115,6 @@ extension Person : CustomStringConvertible {
         // We are ignoring the changeDate.
         
         result += UNDERLINE + NL
-        // if let name = name {
-        //     result += name + NL
         if names.count > 0 {
             result += names[0].baseName
             if let type = names[0].type {
@@ -139,7 +135,8 @@ extension Person : CustomStringConvertible {
         // results in omission of the sex in an exported .ged file.
         //
         // We're going to assume -- for Gramps use only? -- that an omitted sex
-        // should be X. If you're a U or an N, tell us your sex, please.
+        // should be X. U or N indicates that more information is needed, not
+        // that a decision was made to prefer U or N.
         if let sex = sex {
             if sex == "M" {
                 result += "male"
@@ -357,10 +354,6 @@ class Reporter {
 
             // Make the sort keys.
             for who in sortedPeople {
-            // for w in 0 ..< sortedPeople.count {
-            //     let who = sortedPeople[w]
-            //     // Careful! Person is a struct, not a class -- changes to "who"
-            //     // will vanish when we leave this loop.
                 var sortingName: String
                 if who.names.count > 0 {
                     // Probably surName already has a value, but let's be
@@ -375,7 +368,6 @@ class Reporter {
                     sortingName = "/no name/"
                 }
                 who.nameForSorting = sortingName
-                // sortedPeople[w].nameForSorting = sortingName
             }
             
             // Sort the list.
@@ -416,23 +408,28 @@ class Reporter {
     // that is, the families in which the person was a child.
 
     func personsFamilyCDetails(_ person: Person, _ familyC: [FamilyID])
-            throws -> String {
+            throws -> String
+    {
         var result = ""
         
         // Are there any families here?
         if familyC.count == 0 {
-            throw ReportingError.report(person.personID, "empty familyC")
+            throw ReportingError.report(person.personID, "empty familyC list")
         }
         
         // let multiple = familyC.count > 1
         
         // Should we say "Parent" or "Parents"?
         var pluralParents = familyC.count > 1
-        // OK, but are there two parents in the (sole) family?
+        // That is, if the person was a child in more than one family, we assume
+        // that the person has more than one parent.
+        //
+        // But if there is only one family, there could still be two parents.
         if !pluralParents {
             guard let soleFamily = ancestry.families[familyC[0]]
             else {
-                throw ReportingError.report(person.personID, "bad key in familyC")
+                throw ReportingError.report(person.personID,
+                                            "bad key in familyC")
             }
             if soleFamily.husband != nil && soleFamily.wife != nil {
                 pluralParents = true
@@ -447,12 +444,14 @@ class Reporter {
             whichFamily += 1
             guard let family = ancestry.families[f]
             else {
-                throw ReportingError.report(person.personID, "bad key in familyC")
+                throw ReportingError.report(person.personID,
+                                            "bad key in familyC")
             }
             
             let me = family.children.first() {$0.personID == person.personID}
             if me == nil {
-                throw ReportingError.report(person.personID, "not listed as child")
+                throw ReportingError.report(person.personID,
+                                            "not listed as child")
             }
             
             if let husband = family.husband {
@@ -462,7 +461,8 @@ class Reporter {
                     if let frel = me!.relationToFather {
                         // We're counting on the user to use the same
                         // relationship modifier in all mentions of a parent.
-                        // This is irrelevant in our particular data.
+                        // This was irrelevant in the data used in developing
+                        // the program, so it's inadequately tested.
                         if frel != "" && frel != "birth" {
                             result += " (\(frel)-parent)"
                         }
@@ -477,7 +477,8 @@ class Reporter {
                     if let mrel = me!.relationToMother {
                         // We're counting on the user to use the same
                         // relationship modifier in all mentions of a parent.
-                        // This is irrelevant in our particular data.
+                        // This was irrelevant in the data used in developing
+                        // the program, so it's inadequately tested.
                         if mrel != "" && mrel != "birth" {
                             result += " (\(mrel)-parent)"
                         }
@@ -496,7 +497,8 @@ class Reporter {
     // that is, the families in which the person was a parent.
 
     func personsFamilySDetails(_ person: Person, _ familyS: [FamilyID])
-            throws -> String {
+            throws -> String
+    {
         var result = ""
         
         // Are there any families here?
@@ -528,21 +530,27 @@ class Reporter {
             }
             
             if !isHusband && !isWife {
-                throw ReportingError.report(person.personID, "not listed as parent")
+                throw ReportingError.report(person.personID,
+                                            "not listed as parent")
             }
             
             if isHusband && isWife {
-                throw ReportingError.report(person.personID, "listed as both parents")
+                throw ReportingError.report(person.personID,
+                                            "listed as both parents")
             }
+            // So, in this family, person is either the husband or the wife --
+            // not both.
             
             if whichFamily > 1 {
                 result += NL
             }
             // result += "Marriage to "
             if isHusband && family.wife != nil {
-                result += "Married to " + personsNameString(family.wife!, showPersonIDs) + NL + NL
+                result += "Married to "
+                    + personsNameString(family.wife!, showPersonIDs) + NL + NL
             } else if isWife && family.husband != nil {
-                result += "Married to " + personsNameString(family.husband!, showPersonIDs) + NL + NL
+                result += "Married to "
+                    + personsNameString(family.husband!, showPersonIDs) + NL + NL
             }
             
             // Details of the marriage
@@ -617,7 +625,8 @@ class Reporter {
 
     // Return a description of a Person's family relations, with expanded details.
 
-    func personsFamilyDetails(_ person: Person) throws -> String {
+    func personsFamilyDetails(_ person: Person) throws -> String
+    {
         var result = ""
 
         if let familyC = person.familyC {
@@ -635,7 +644,9 @@ class Reporter {
     // to be nil and to include, or not, the PersonID depending on the user's
     // whim.
 
-    func personsNameString(_ personID: PersonID, _ showPersonIDS: Bool) -> String {
+    func personsNameString(_ personID: PersonID, _ showPersonIDS: Bool)
+            -> String
+    {
         let who = ancestry.people[personID]
         var name = "(no name)" // in case no name is available
         if who != nil && who!.names.count > 0 {
@@ -651,7 +662,8 @@ class Reporter {
 
     // Return a note, reasonably formatted.
 
-    func formattedNote(_ noteID: NoteID) -> String {
+    func formattedNote(_ noteID: NoteID) -> String
+    {
         guard let note = ancestry.notes[noteID] else {
             return ""
         }
@@ -682,7 +694,8 @@ class Reporter {
 
     // Return a list of Notes, suitably formatted.
 
-    func formattedNoteList(_ noteIDs: [NoteID]) -> String {
+    func formattedNoteList(_ noteIDs: [NoteID]) -> String
+    {
         if noteIDs.count == 0 {
             return ""
         }
@@ -704,7 +717,8 @@ class Reporter {
 
     // Return the notes about a Person, reasonably formatted.
 
-    func personNotes(_ person: Person) -> String {
+    func personNotes(_ person: Person) -> String
+    {
         return formattedNoteList(person.noteIDs)
     }
 
