@@ -3,7 +3,40 @@
 //  readgedcom
 //
 //  Created by Jim Clarke on 2021-04-28.
+
+// Versions: Swift 5.4, macOS 11.4, 12.5
+
+// Hello, dear reader of my code, and welcome aboard! The ride is bound to be a
+// little bumpy, but maybe these tips will help:
 //
+// - The purpose of the program is to read a GEDCOM (genealogical export format)
+//   and produce two products:
+//   1) a textual representation, perhaps for showing to other family members;
+//   2) "error" reports where the input file doesn't match current GEDCOM rules,
+//      or where the program or the data are faulty. Specifically, the program
+//      checks to ensure it has looked at all the input data.
+//
+// - The program is guaranteed not to cover all of the GEDCOM standard. If you
+//   want to expand its coverage, the GEDCOM document may help:
+//      https://www.gedcom.org/gedcom.html
+//   You want version 5.5.5.
+//
+// - As you can see from the end of this "main.swift" file, data structures are
+//   defined and actions are taken in this order:
+//      main.swift: preliminaries
+//      ParsedData: breaking the lines of input into meaningful chunks
+//      DataForest: making a tree (not a family tree!) for each GEDCOM record
+//      Ancestry: extracting the people and their families from the data trees
+//      Reporter: "printing" the output
+//
+// - This was my first non-trivial Swift program, as you'll probably notice.
+//   Watch for design choices influenced by C or Java.
+//
+//   Feel free to contact me through Github, and I'll see if I can remember what
+//   I did.
+//
+// -- Jim Clarke, June 2021
+
 
 import Foundation
 import StringUtilities
@@ -62,7 +95,7 @@ func readLineArgs() -> (String, Bool, Bool) {
 }
 
 
-// Input file and some output controls, read from the command line
+// Input file name and some output controls, read from the command line
 
 var infileName: String
 var showPersonIDs: Bool
@@ -91,9 +124,17 @@ var errorsfile: OutFile
 //  - any desired options
 //  - the input file name, relative to the execution directory
 // The execution directory "hereDir" is the directory for the Xcode project.
-// Mine is shown. Replace it with yours!
+// Xcode knows your home directory via its environment variable "HOME", but you
+// have to tell it the path relative to your home. You could define another
+// environment variable to do that, but I've just hard-wired it.
+//
+// Replace my path with yours!
 
-let hereDir = "/Users/clarke/Documents/computing/src/Swift/readgedcom/"
+let hereDir = ProcessInfo.processInfo.environment["HOME"]!
+    + "/Documents/computing/src/Swift/readgedcom/"
+
+let infile = InFile(hereDir + infileName)
+
 reportfile = OutFile(hereDir + "dev.out")
 errorsfile = OutFile(hereDir + "dev.err")
 
@@ -102,6 +143,9 @@ errorsfile = OutFile(hereDir + "dev.err")
 // SECTION B: Running in normal use (and not in Xcode)
 
 // You don't need hereDir.
+
+//let infile = InFile(infileName)
+//
 //reportfile = StreamedOutFile("report", stream: stdoutStream)
 //errorsfile = StreamedOutFile("errors", stream: stderrStream)
 
@@ -112,7 +156,7 @@ errorsfile = OutFile(hereDir + "dev.err")
 var summary = ""
 func smry(_ msg: String) { summary += msg + "\n" }
 
-// Start activity summary
+// Start activity summary.
 let now = Date()
 let formatter = DateFormatter()
 formatter.timeZone = TimeZone.current
@@ -125,7 +169,7 @@ smry("Input file: \(infileName)")
 smry("\nReading data, then building data structures ...")
 var rawData: [Substring]
 do {
-    rawData = try InFile(hereDir + infileName).read()
+    rawData = try infile.read()
 }
 catch FileError.failedRead(let msg) {
     errorsfile.writeln(msg)
@@ -159,14 +203,16 @@ smry("Notes: \(nNotes)")
 smry("\"Records (tree roots) built\" should be Persons + Families + Notes + 3.")
 smry("    (3 is the number of non-data records: HEAD, SUBM and TRLR.)")
 if nRoots == nPersons + nFamilies + nNotes + 3 {
-    smry("... yes, \(nRoots) = \(nPersons) + \(nFamilies) + \(nNotes) + 3")
+    smry("... yes, \(nRoots) = "
+         + "\(nPersons) + \(nFamilies) + \(nNotes) + 3")
 } else {
-    smry("... trouble!  \(nRoots) not= \(nPersons) + \(nFamilies) + \(nNotes) + 3")
+    smry("... trouble!  \(nRoots) not= "
+         + "\(nPersons) + \(nFamilies) + \(nNotes) + 3")
 }
 
-// Set printUnreadLines: true in data.countUnread to get more information.
+// For more information, set printUnreadLines: true in data.countUnread().
 smry("Parsed lines not read: \(data.countUnread()) [should be 0]")
-// Set printUnreadLines: true in dataForest.countUnread to get more information.
+// For more information, set printUnreadLines: true in dataForest.countUnread().
 smry("Tree nodes not read: \(dataForest.countUnread()) [should be 0]")
 
 // Produce the report.
